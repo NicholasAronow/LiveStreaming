@@ -208,7 +208,7 @@
     function updateOverlayMessage() {
         const useManaged = elements.cloudflareToggle.checked || currentPlatform === 'here';
         if (useManaged) {
-            elements.overlayMessage.textContent = 'Stream preview will appear here';
+            elements.overlayMessage.textContent = 'Stream preview will appear sdhere';
         } else {
             elements.overlayMessage.textContent = 'Status logs will appear here';
         }

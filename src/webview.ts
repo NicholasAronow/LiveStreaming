@@ -13,12 +13,15 @@ export function setupExpressRoutes(server: AppServer): void {
   // JSON parser for API routes
   app.use(express.json());
 
+  // Serve static files from public/react for the React app
+  app.use('/assets', express.static(path.join(__dirname, '../public/react/assets')));
+
   // Set up EJS as the view engine
   app.set('view engine', 'ejs');
   app.engine('ejs', require('ejs').__express);
   app.set('views', path.join(__dirname, 'views'));
 
-  // Register a route for handling webview requests
+  // Register a route for handling webview requests (EJS version)
   app.get('/webview', (req: AuthenticatedRequest, res: any) => {
     if (req.authUserId) {
       // Render the webview template
@@ -40,6 +43,16 @@ export function setupExpressRoutes(server: AppServer): void {
         customRtmpUrl: req.activeSession?.customRtmpUrl ?? '',
         useCloudflareManaged: req.activeSession?.useCloudflareManaged ?? false,
       });
+    } else {
+      res.redirect('/mentra-auth');
+    }
+  });
+
+  // Register a route for handling React webview (new version)
+  app.get('/webview-react', (req: AuthenticatedRequest, res: any) => {
+    if (req.authUserId) {
+      // Serve the React app
+      res.sendFile(path.join(__dirname, '../public/react/index.html'));
     } else {
       res.redirect('/mentra-auth');
     }
