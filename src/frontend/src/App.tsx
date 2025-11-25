@@ -53,10 +53,10 @@ function App() {
   //   );
   // }
 
-  return <AuthenticatedApp />;
+  return <AuthenticatedApp userId={userId || ""} />;
 }
 
-function AuthenticatedApp() {
+function AuthenticatedApp({ userId }: { userId: string }) {
   const [config, setConfig] = useState<StreamConfigType>({
     platform: 'here',
     streamKey: '',
@@ -76,7 +76,7 @@ function AuthenticatedApp() {
     });
   }, []);
 
-  const { status } = useStreamStatus((newStatus) => {
+  const { status } = useStreamStatus(userId, (newStatus) => {
     // Handle session status
     if (newStatus.hasActiveSession !== undefined && !newStatus.hasActiveSession) {
       setCurrentStreamStatus('offline');
@@ -150,7 +150,7 @@ function AuthenticatedApp() {
     }
 
     if (config.platform === 'here' || useManaged) {
-      const result = await postJson('/api/stream/managed/start', config);
+      const result = await postJson('/api/stream/managed/start', config, userId);
       if (result.ok === false) {
         setCurrentStreamStatus('Error');
         setIsStreaming(false);
@@ -170,7 +170,7 @@ function AuthenticatedApp() {
       }
 
       addLog('info', 'Connecting to: ' + rtmpUrl.replace(/\/[^/]*$/, '/****'));
-      const result = await postJson('/api/stream/unmanaged/start', { rtmpUrl, ...config });
+      const result = await postJson('/api/stream/unmanaged/start', { rtmpUrl, ...config }, userId);
       if (result.ok === false) {
         setCurrentStreamStatus('Error');
         setIsStreaming(false);
@@ -192,7 +192,7 @@ function AuthenticatedApp() {
     const streamType = config.useCloudflareManaged || config.platform === 'here' ? 'managed' : 'unmanaged';
     const endpoint = streamType === 'managed' ? '/api/stream/managed/stop' : '/api/stream/unmanaged/stop';
 
-    await postJson(endpoint);
+    await postJson(endpoint, {}, userId);
   };
 
   const handleToggleStream = () => {

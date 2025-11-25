@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StreamStatus } from '../types';
 
-export function useStreamStatus(onStatusUpdate?: (status: StreamStatus) => void) {
+export function useStreamStatus(userId?: string, onStatusUpdate?: (status: StreamStatus) => void) {
   const [status, setStatus] = useState<StreamStatus>({
     streamType: null,
     streamStatus: 'offline',
@@ -13,8 +13,10 @@ export function useStreamStatus(onStatusUpdate?: (status: StreamStatus) => void)
     let eventSource: EventSource | null = null;
 
     try {
-      // EventSource automatically includes credentials for same-origin requests
-      eventSource = new EventSource('/stream-status');
+      // Use relative URL (will be proxied by Vite in dev)
+      // Add userId as query parameter if provided
+      const url = userId ? `/stream-status?userId=${encodeURIComponent(userId)}` : '/stream-status';
+      eventSource = new EventSource(url);
 
       eventSource.addEventListener('status', (evt) => {
         try {
@@ -42,7 +44,7 @@ export function useStreamStatus(onStatusUpdate?: (status: StreamStatus) => void)
     return () => {
       eventSource?.close();
     };
-  }, [onStatusUpdate]);
+  }, [userId, onStatusUpdate]);
 
   return { status, connected };
 }

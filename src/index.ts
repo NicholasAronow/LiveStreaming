@@ -9,6 +9,9 @@ const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Erro
 const PORT = parseInt(process.env.PORT || '3000');
 
 class StreamerApp extends AppServer {
+  /** Map to store active user sessions */
+  private userSessionsMap = new Map<string, AppSession>();
+
   constructor() {
     super({
       packageName: PACKAGE_NAME,
@@ -17,12 +20,9 @@ class StreamerApp extends AppServer {
       publicDir: path.join(__dirname, '../public'),
     });
 
-    // Set up Express routes
-    setupExpressRoutes(this);
+    // Set up Express routes with access to userSessionsMap
+    setupExpressRoutes(this, (userId: string) => this.userSessionsMap.get(userId));
   }
-
-  /** Map to store active user sessions */
-  private userSessionsMap = new Map<string, AppSession>();
 
   /**
    * Handles tool calls from the MentraOS system

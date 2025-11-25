@@ -12,29 +12,25 @@ export default defineConfig({
       '.ngrok.dev',
       '.ngrok.io',
       '.ngrok.app',
+      'general.dev.tpa.ngrok.app'
     ],
     proxy: {
-      // Proxy API calls to backend ngrok URL
+      // Proxy ALL backend requests for session cookie compatibility
       '/api': {
         target: 'https://general.dev.tpa.ngrok.app',
         changeOrigin: true,
         secure: false,
-        ws: true,
       },
-      // Proxy SSE endpoint to backend ngrok URL
       '/stream-status': {
         target: 'https://general.dev.tpa.ngrok.app',
         changeOrigin: true,
         secure: false,
-        ws: true,
       },
-      // Proxy Mentra auth endpoint to backend ngrok URL
       '/mentra-auth': {
         target: 'https://general.dev.tpa.ngrok.app',
         changeOrigin: true,
         secure: false,
       },
-      // Proxy Mentra SDK endpoints to backend ngrok URL
       '/__mentra': {
         target: 'https://general.dev.tpa.ngrok.app',
         changeOrigin: true,
@@ -43,7 +39,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../../public/react',
+    outDir: './dist',
     emptyOutDir: true,
   },
 })

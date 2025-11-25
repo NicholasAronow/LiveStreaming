@@ -33,11 +33,21 @@ export function isStreamingStatus(status?: string): boolean {
   );
 }
 
-export async function postJson(url: string, body?: unknown) {
+export async function postJson(url: string, body?: unknown, userId?: string) {
   try {
+    // Use relative URL (will be proxied by Vite in dev)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // Add X-User-Id header if userId is provided
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       credentials: 'include', // Include cookies for authentication
       body: JSON.stringify(body || {}),
     });
