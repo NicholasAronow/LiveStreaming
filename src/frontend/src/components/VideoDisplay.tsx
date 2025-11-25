@@ -15,7 +15,7 @@ export const VideoDisplay: React.FC<VideoDisplayProps> = ({
 }) => {
   const showOverlay = !showPreview && !showLogs;
   const overlayMessage = useManaged
-    ? 'Stream preview will appedasdasar here'
+    ? 'Stream preview will appsddsedasdasar here'
     : 'Status logs will appear here';
 
   return (

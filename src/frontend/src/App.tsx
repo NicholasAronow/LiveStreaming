@@ -42,16 +42,16 @@ function App() {
   }
 
   // Handle unauthenticated state
-  if (!isAuthenticated || !userId) {
-    return (
-      <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <h2 style={{ color: '#ef4444', marginBottom: '10px' }}>Not Authenticated</h2>
-          <p style={{ color: '#6b7280' }}>Please open this page from the MentraOS manager app.</p>
-        </div>
-      </div>
-    );
-  }
+  // if (!isAuthenticated || !userId) {
+  //   return (
+  //     <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+  //       <div style={{ textAlign: 'center', padding: '20px' }}>
+  //         <h2 style={{ color: '#ef4444', marginBottom: '10px' }}>Not Authenticated</h2>
+  //         <p style={{ color: '#6b7280' }}>Please open this page from the MentraOS manager app.</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return <AuthenticatedApp />;
 }
