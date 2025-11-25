@@ -19,16 +19,18 @@ export const VideoDisplay: React.FC<VideoDisplayProps> = ({
     : 'Status logs will appear here';
 
   return (
-    <div className="video-container">
+    <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
       <iframe
         id="livePlayer"
         src={previewUrl || ''}
         style={{ border: 0 }}
         allowFullScreen
-        className={showPreview ? 'visible' : ''}
+        className={`w-full h-full border-none bg-black ${showPreview ? 'block' : 'hidden'}`}
       />
-      <div className={`video-overlay ${showOverlay ? '' : 'hidden'}`}>
-        <div className="overlay-message">{overlayMessage}</div>
+      <div className={`absolute inset-0 flex items-center justify-center bg-black/70 transition-opacity duration-300 ${
+        showOverlay ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}>
+        <div className="text-base text-text-secondary text-center p-5">{overlayMessage}</div>
       </div>
     </div>
   );

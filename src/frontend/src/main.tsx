@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MentraAuthProvider } from '@mentra/react';
 import App from './App';
+import './index.css';
 
 /**
  * Application entry point that provides MentraOS authentication context

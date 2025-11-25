@@ -8,7 +8,6 @@ import { StatusLogs } from './components/StatusLogs';
 import { useStreamStatus } from './hooks/useStreamStatus';
 import { Platform, LogEntry, StreamConfig as StreamConfigType } from './types';
 import { isStreamingStatus, postJson, formatTimestamp, getRtmpUrl } from './utils';
-import './styles.css';
 
 const MAX_LOGS = 100;
 
@@ -18,8 +17,8 @@ function App() {
   // Handle loading state
   if (isLoading) {
     return (
-      <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
+      <div className="flex items-center justify-center min-h-screen bg-bg-primary">
+        <div className="text-center">
           <p>Loading authentication...</p>
         </div>
       </div>
@@ -29,11 +28,11 @@ function App() {
   // Handle error state
   if (error) {
     return (
-      <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <h2 style={{ color: '#ef4444', marginBottom: '10px' }}>Authentication Error</h2>
-          <p style={{ color: '#f87171', marginBottom: '10px' }}>{error}</p>
-          <p style={{ color: '#6b7280', fontSize: '14px' }}>
+      <div className="flex items-center justify-center min-h-screen bg-bg-primary">
+        <div className="text-center p-5">
+          <h2 className="text-danger mb-2.5">Authentication Error</h2>
+          <p className="text-red-400 mb-2.5">{error}</p>
+          <p className="text-gray-500 text-sm">
             Please ensure you are opening this page from the MentraOS app.
           </p>
         </div>
@@ -208,7 +207,7 @@ function AuthenticatedApp({ userId }: { userId: string }) {
   const showLogs = status.streamType === 'unmanaged' && (logs.length > 0 || isStreaming);
 
   return (
-    <div className="mobile-container">
+    <div className="h-screen flex flex-col max-w-full mx-auto bg-bg-primary md:max-w-[500px] md:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
       <StatusBar
         status={currentStreamStatus || status.streamStatus || 'offline'}
         batteryPercent={status.glassesBatteryPercent ?? null}
@@ -216,7 +215,7 @@ function AuthenticatedApp({ userId }: { userId: string }) {
         onToggleStream={handleToggleStream}
       />
 
-      <div className="stream-config">
+      <div className="bg-bg-secondary p-5 border-b border-border max-[600px]:p-3">
         <PlatformSelector
           selectedPlatform={config.platform}
           onPlatformChange={handlePlatformChange}

@@ -21,20 +21,20 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
   disabled,
 }) => {
   return (
-    <div className="platform-selector">
-      <label className="platform-label">Stream To</label>
-      <div className="platform-buttons">
+    <div className="mb-5">
+      <label className="block text-xs uppercase tracking-wider text-text-secondary mb-3 font-semibold">Stream To</label>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(70px,1fr))] gap-2">
         {platforms.map((platform) => (
           <button
             key={platform.value}
-            className={`platform-btn ${selectedPlatform === platform.value ? 'active' : ''}`}
+            className={`py-2.5 px-2 border rounded-lg text-[13px] font-medium transition-all duration-200 ${
+              selectedPlatform === platform.value
+                ? 'bg-primary text-white border-primary'
+                : 'bg-bg-tertiary text-text-secondary border-border hover:bg-bg-primary hover:text-text-primary'
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             data-platform={platform.value}
             onClick={() => onPlatformChange(platform.value)}
             disabled={disabled}
-            style={{
-              opacity: disabled ? '0.5' : '1',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-            }}
           >
             {platform.label}
           </button>
