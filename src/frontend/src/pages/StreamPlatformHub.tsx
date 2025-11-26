@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import trashIcon from '../../../public/assets/trash.svg'
 import cameraStreamIcon from '../../../public/assets/cameraStreamIcon.svg'
 import { LogEntry } from '../types'
+import EditDeleteDialog from '../components/EditDeleteDialog'
 
 interface StreamPlatformHubProps {
   platformName?: string;
@@ -11,6 +12,13 @@ interface StreamPlatformHubProps {
   onStartStream?: () => void;
   onStopStream?: () => void;
   onGoBack?: () => void;
+  onOpenDialog?: () => void;
+  isDialogOpen?: boolean;
+  onCloseDialog?: () => void;
+  onDelete?: () => void;
+  onSaveEdit?: (newKey: string) => void;
+  isDeleting?: boolean;
+  currentStreamKey?: string;
   logs?: LogEntry[];
   maskedStreamKey?: string;
   previewUrl?: string | null;
@@ -25,6 +33,13 @@ function StreamPlatformHub({
   onStartStream,
   onStopStream,
   onGoBack,
+  onOpenDialog,
+  isDialogOpen = false,
+  onCloseDialog,
+  onDelete,
+  onSaveEdit,
+  isDeleting = false,
+  currentStreamKey = '',
   logs = [],
   maskedStreamKey,
   previewUrl = null,
@@ -106,8 +121,20 @@ function StreamPlatformHub({
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white">
-      <div className="flex flex-col gap-[12px]">
+    <>
+      {/* Edit/Delete Dialog */}
+      <EditDeleteDialog
+        isOpen={isDialogOpen}
+        onClose={onCloseDialog || (() => {})}
+        platformName={platformName}
+        currentStreamKey={currentStreamKey}
+        onSave={onSaveEdit || (() => {})}
+        onDelete={onDelete || (() => {})}
+        isDeleting={isDeleting}
+      />
+
+      <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white">
+        <div className="flex flex-col gap-[12px]">
         {/* Stream Preview */}
         <div className="relative w-full aspect-video rounded-[16px] overflow-hidden" style={{ background: 'linear-gradient(135deg, #1E2939 0%, #101828 100%)' }}>
           {/* Status Toggle */}
@@ -181,13 +208,19 @@ function StreamPlatformHub({
           </div>
 
           <div className="flex items-center gap-[9px]">
-            {/* Edit Button */}
-            <button className="text-[14px] w-[60px] h-[30px] border border-[var(--border)] rounded-[12px] text-[var(--secondary-background)] hover:bg-gray-50 transition-colors font-semibold">
+            {/* Edit Button - Opens Dialog */}
+            <button
+              onClick={onOpenDialog}
+              className="text-[14px] w-[60px] h-[30px] border border-[var(--border)] rounded-[12px] text-[var(--secondary-background)] hover:bg-gray-50 transition-colors font-semibold"
+            >
               Edit
             </button>
 
-            {/* Delete Button */}
-            <button className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-gray-50 transition-colors">
+            {/* Delete Button - Opens Dialog */}
+            <button
+              onClick={onOpenDialog}
+              className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition-colors"
+            >
               <img src={trashIcon} alt="Delete" className="w-[20px] h-[20px]" />
             </button>
           </div>
@@ -287,6 +320,7 @@ function StreamPlatformHub({
         </button>
       </div>
     </div>
+    </>
   )
 }
 

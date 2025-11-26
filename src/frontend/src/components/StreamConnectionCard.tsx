@@ -20,7 +20,7 @@ function StreamConnectionCard({ connection, onOpen }: StreamConnectionCardProps)
             {connection.platformName}
           </h3>
           <p className="text-[14px] text-[var(--muted-forground)] font-mono">
-            Stream Key - {connection.maskedStreamKey}
+            Stream Key - {connection.maskedStreamKey.slice(0, 10)}...
           </p>
           <p className="text-[12px] text-[var(--muted-forground)]">
             {connection.createdAt}

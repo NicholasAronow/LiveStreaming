@@ -36,9 +36,19 @@ function Container() {
     streamUrl?: string;
   } | null>(null);
 
-  // Stream connections management
-  const [connections, setConnections] = useState<StreamConnection[]>([]);
+  // Stream connections management - load from localStorage on mount
+  const [connections, setConnections] = useState<StreamConnection[]>(() => {
+    try {
+      const saved = localStorage.getItem('streamConnections');
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('Failed to load connections from localStorage:', error);
+      return [];
+    }
+  });
   const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Stream configuration state
   const [streamKey, setStreamKey] = useState('');
@@ -120,6 +130,15 @@ function Container() {
       addLog('info', 'Stream preview available');
     }
   });
+
+  // Save connections to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('streamConnections', JSON.stringify(connections));
+    } catch (error) {
+      console.error('Failed to save connections to localStorage:', error);
+    }
+  }, [connections]);
 
   useEffect(() => {
     if (skipSplashAnimation) {
@@ -295,6 +314,91 @@ function Container() {
     }
   };
 
+  const handleDeleteConnection = async () => {
+    if (!selectedConnection) return;
+
+    setIsDeleting(true);
+
+    // First, stop the stream if it's currently streaming
+    if (isStreamingStatus(currentStreamStatus)) {
+      addLog('info', 'Stopping stream before deletion...');
+      setCurrentStreamStatus('Stopping');
+
+      const result = await postJson('/api/stream/managed/stop', {}, userId || undefined);
+
+      if (result.ok === false) {
+        addLog('error', 'Failed to stop stream: ' + (result.error || 'Unknown error'));
+        alert('Failed to stop stream. Please try again.');
+        setIsDeleting(false);
+        return; // Don't proceed with deletion if stop failed
+      }
+
+      // Wait a moment for stream to fully stop
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      addLog('success', 'Stream stopped');
+    }
+
+    // Now remove from connections array
+    setConnections(prev => prev.filter(conn => conn.id !== selectedConnection.id));
+
+    // Clear selected connection and go back to list
+    setSelectedConnection(null);
+    setConnectedPlatform(null);
+    setIsStreaming(false);
+    setCurrentStreamStatus('offline');
+    setLogs([]);
+    setIsDeleting(false);
+    setIsDialogOpen(false);
+
+    addLog('info', `Deleted stream key for ${selectedConnection.platformName}`);
+  };
+
+  const handleEditConnection = (newKey: string) => {
+    if (!selectedConnection || !newKey.trim()) return;
+
+    const trimmedKey = newKey.trim();
+
+    // Update the connection with new key
+    setConnections(prev => prev.map(conn => {
+      if (conn.id === selectedConnection.id) {
+        return {
+          ...conn,
+          fullStreamKey: trimmedKey,
+          maskedStreamKey: maskStreamKey(trimmedKey)
+        };
+      }
+      return conn;
+    }));
+
+    // Update selected connection
+    const updatedConnection = {
+      ...selectedConnection,
+      fullStreamKey: trimmedKey,
+      maskedStreamKey: maskStreamKey(trimmedKey)
+    };
+    setSelectedConnection(updatedConnection);
+
+    // Update connected platform
+    if (connectedPlatform) {
+      setConnectedPlatform({
+        ...connectedPlatform,
+        streamKey: trimmedKey
+      });
+    }
+
+    addLog('info', `Updated stream key for ${selectedConnection.platformName}`);
+  };
+
+  const handleOpenDialog = () => {
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    if (!isDeleting) {
+      setIsDialogOpen(false);
+    }
+  };
+
   const renderContent = () => {
     // Show AddedKeyPage when connection is made
     if (showAddedKeyPage && selectedPlatform) {
@@ -341,6 +445,13 @@ function Container() {
                 setCurrentStreamStatus('offline');
                 setLogs([]);
               }}
+              onOpenDialog={handleOpenDialog}
+              isDialogOpen={isDialogOpen}
+              onCloseDialog={handleCloseDialog}
+              onDelete={handleDeleteConnection}
+              onSaveEdit={handleEditConnection}
+              isDeleting={isDeleting}
+              currentStreamKey={selectedConnection.fullStreamKey}
               logs={logs}
               maskedStreamKey={selectedConnection.maskedStreamKey}
               previewUrl={status.previewUrl ?? null}
@@ -366,12 +477,34 @@ function Container() {
               setStreamKey(connection.fullStreamKey);
               setStreamUrl(connection.rtmpUrl || '');
             }}
+            onNavigateToNew={() => setActiveTab('new')}
           />
         );
       case 'settings':
         return (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-xl text-gray-500">Settings Tab - Coming Soon</p>
+          <div className="flex flex-col items-center justify-center h-full p-[24px]">
+            <div className="w-full max-w-[400px] space-y-[16px]">
+              <h2 className="text-[24px] font-semibold text-[var(--secondary-background)] mb-[24px]">Settings</h2>
+
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to clear all saved stream keys? This action cannot be undone.')) {
+                    setConnections([]);
+                    setSelectedConnection(null);
+                    setConnectedPlatform(null);
+                    localStorage.removeItem('streamConnections');
+                    alert('All stream keys have been cleared.');
+                  }
+                }}
+                className="w-full bg-red-500 text-white rounded-[16px] px-[24px] h-[48px] text-[16px] font-medium hover:bg-red-600 transition-colors"
+              >
+                Clear All Stream Keys
+              </button>
+
+              <p className="text-[14px] text-gray-500 text-center mt-[8px]">
+                {connections.length} stream key{connections.length !== 1 ? 's' : ''} saved
+              </p>
+            </div>
           </div>
         );
       default:
