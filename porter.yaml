@@ -6,13 +6,13 @@ build:
   context: .
   dockerfile: ./docker/Dockerfile
 services:
-  - name: streamer-app
+  - name: streamer-app-aryan
     type: web
     run: bun run start
-    port: 80
+    port: 3000
     cpuCores: 1.0
     ramMegabytes: 1024
     env:
-      NODE_ENV: ${NODE_ENV}
+      NODE_ENV: production
       PORTER_APP_NAME: ${PORTER_APP_NAME}
       HOST: "0.0.0.0"
