@@ -9,10 +9,10 @@ services:
   - name: streamer-app-aryan
     type: web
     run: bun run start
-    port: 3000
+    port: 80
     cpuCores: 1.0
     ramMegabytes: 1024
     env:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV}
       PORTER_APP_NAME: ${PORTER_APP_NAME}
       HOST: "0.0.0.0"

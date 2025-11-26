@@ -13,8 +13,8 @@ COPY . .
 # Build the frontend
 RUN bun run build:frontend
 
-# Expose the port (default 3000, configurable via PORT env var)
-EXPOSE 3000
+# Expose the port (default 80, configurable via PORT env var)
+EXPOSE 80
 
 # Set production environment
 ENV NODE_ENV=production
