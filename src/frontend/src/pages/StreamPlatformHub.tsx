@@ -1,25 +1,83 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import trashIcon from '../../../public/assets/trash.svg'
 import cameraStreamIcon from '../../../public/assets/cameraStreamIcon.svg'
+import { LogEntry } from '../types'
 
 interface StreamPlatformHubProps {
   platformName?: string;
   platformLogoIcon?: string;
+  isStreaming?: boolean;
+  streamStatus?: string;
+  onStartStream?: () => void;
+  onStopStream?: () => void;
+  logs?: LogEntry[];
+  maskedStreamKey?: string;
 }
 
-function StreamPlatformHub({ platformName = "YouTube", platformLogoIcon }: StreamPlatformHubProps) {
-  const [isLive, setIsLive] = useState(false);
+function StreamPlatformHub({
+  platformName = "YouTube",
+  platformLogoIcon,
+  isStreaming = false,
+  streamStatus = 'offline',
+  onStartStream,
+  onStopStream,
+  logs = [],
+  maskedStreamKey
+}: StreamPlatformHubProps) {
+  const [duration, setDuration] = useState(0);
+
+  // Update duration when streaming
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isStreaming && streamStatus.toLowerCase() === 'streaming') {
+      interval = setInterval(() => {
+        setDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setDuration(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isStreaming, streamStatus]);
+
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleToggleStream = () => {
+    if (isStreaming) {
+      onStopStream?.();
+    } else {
+      onStartStream?.();
+    }
+  };
+
+  const getStatusColor = () => {
+    const status = streamStatus.toLowerCase();
+    if (status === 'streaming' || status === 'active' || status === 'connected') {
+      return '#10B981'; // green
+    } else if (status === 'connecting' || status === 'starting') {
+      return '#F59E0B'; // orange
+    } else if (status === 'error' || status === 'failed') {
+      return '#EF4444'; // red
+    }
+    return '#6B7280'; // gray
+  };
 
   return (
     <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white">
       <div className="flex flex-col gap-[12px]">
         {/* Stream Preview */}
         <div className="relative w-full aspect-video rounded-[16px] flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #1E2939 0%, #101828 100%)' }}>
-          {/* Off Toggle */}
+          {/* Status Toggle */}
           <div className="absolute top-[19px] left-[19px]">
-            <div className="flex bg-[var(--muted-forground)] rounded-full w-[48px] h-[24px] justify-center items-center gap-[4px]">
-              <div className="w-[8px] h-[8px] rounded-full bg-[var(--primary-forground)]"></div>
-              <span className="text-white text-[12px] ">Off</span>
+            <div className="flex rounded-full px-[12px] h-[24px] justify-center items-center gap-[4px]" style={{ backgroundColor: getStatusColor() }}>
+              <div className="w-[8px] h-[8px] rounded-full bg-white"></div>
+              <span className="text-white text-[12px] font-medium capitalize">{streamStatus}</span>
             </div>
           </div>
 
@@ -27,24 +85,34 @@ function StreamPlatformHub({ platformName = "YouTube", platformLogoIcon }: Strea
           <img src={cameraStreamIcon} alt="Camera" className="mb-[16px] w-[64px] h-[64px]" />
 
           {/* Preview Text */}
-          <p className="text-[#94A3B8] text-[16px] font-normal">Stream preview will appear here</p>
+          <p className="text-[#94A3B8] text-[16px] font-normal">
+            {isStreaming ? 'Streaming...' : 'Stream preview will appear here'}
+          </p>
         </div>
 
-        {/* Go Live Button */}
+        {/* Go Live / Stop Button */}
         <button
-          onClick={() => setIsLive(!isLive)}
-          className="w-full h-[44px] bg-[#0A0A0A] text-white rounded-[16px] flex items-center justify-center gap-[6px] hover:opacity-90 transition-all"
+          onClick={handleToggleStream}
+          className={`w-full h-[44px] text-white rounded-[16px] flex items-center justify-center gap-[6px] hover:opacity-90 transition-all ${
+            isStreaming ? 'bg-red-600' : 'bg-[#0A0A0A]'
+          }`}
+          disabled={streamStatus.toLowerCase() === 'connecting' || streamStatus.toLowerCase() === 'stopping'}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="white"
-            stroke="none"
-          >
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          <span className="text-[14px] font-medium">Go Live</span>
+          {isStreaming ? (
+            <>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none">
+                <rect x="6" y="6" width="12" height="12" />
+              </svg>
+              <span className="text-[14px] font-medium">Stop Stream</span>
+            </>
+          ) : (
+            <>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span className="text-[14px] font-medium">Go Live</span>
+            </>
+          )}
         </button>
 
         {/* Platform Info */}
@@ -85,21 +153,33 @@ function StreamPlatformHub({ platformName = "YouTube", platformLogoIcon }: Strea
             {/* Duration */}
             <div className="flex items-center justify-between">
               <span className="text-[14px] text-[var(--secondary-background)]">Duration</span>
-              <span className="text-[14px] font-medium text-[var(--secondary-background)]">00:00</span>
+              <span className="text-[14px] font-medium text-[var(--secondary-background)]">
+                {formatDuration(duration)}
+              </span>
             </div>
+
+            {/* Status */}
+            <div className="flex items-center justify-between">
+              <span className="text-[14px] text-[var(--secondary-background)]">Status</span>
+              <span className="text-[14px] font-medium text-[var(--secondary-background)] capitalize">
+                {streamStatus}
+              </span>
+            </div>
+
+            {/* Stream Key - Only show if available */}
+            {maskedStreamKey && (
+              <div className="flex items-center justify-between">
+                <span className="text-[14px] text-[var(--secondary-background)]">Stream Key</span>
+                <span className="text-[14px] font-medium text-[var(--secondary-background)] font-mono">
+                  {maskedStreamKey}
+                </span>
+              </div>
+            )}
 
             {/* Quality */}
             <div className="flex items-center justify-between">
               <span className="text-[14px] text-[var(--secondary-background)]">Quality</span>
               <span className="text-[14px] font-medium text-[var(--secondary-background)]">1080p 60fps</span>
-            </div>
-
-            {/* Stream Key */}
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] text-[var(--secondary-background)]">Streamkey</span>
-              <span className="text-[14px] font-medium text-[var(--secondary-background)]">
-                **********************3434
-              </span>
             </div>
 
             {/* Dropped Frames */}
@@ -109,6 +189,30 @@ function StreamPlatformHub({ platformName = "YouTube", platformLogoIcon }: Strea
             </div>
           </div>
         </div>
+
+        {/* Logs Section - Only show if there are logs */}
+        {logs.length > 0 && (
+          <div className="bg-[#F5F5F5] rounded-[16px] p-[16px]">
+            <h3 className="text-[16px] text-[var(--secondary-background)] mb-[12px] font-normal">
+              Stream Logs
+            </h3>
+            <div className="flex flex-col gap-[8px] max-h-[200px] overflow-y-auto">
+              {logs.slice(-10).map((log, index) => (
+                <div key={index} className="text-[12px] font-mono">
+                  <span className="text-[var(--muted-forground)]">{log.timestamp}</span>{' '}
+                  <span className={
+                    log.type === 'error' ? 'text-red-600' :
+                    log.type === 'success' ? 'text-green-600' :
+                    log.type === 'warning' ? 'text-yellow-600' :
+                    'text-[var(--secondary-background)]'
+                  }>
+                    {log.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Go Back Button */}
         <button className="text-[14px] w-full h-[44px] border border-[var(--border)] rounded-[16px] font-semibold text-[var(--secondary-background)] hover:bg-gray-50 transition-colors">

@@ -7,7 +7,7 @@ interface StreamSetupProps {
   platformIcon: string;
   platformLogoIcon?: string;
   onBack: () => void;
-  onConnect: () => void;
+  onConnect: (streamKey: string, streamUrl: string) => void;
 }
 
 function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, onBack, onConnect }: StreamSetupProps) {
@@ -18,15 +18,15 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
   const getDefaultStreamUrl = (platform: string) => {
     switch (platform) {
       case "youtube":
-        return "rtmp://a.rtmp.youtube.com/live2/";
+        return "rtmps://a.rtmps.youtube.com/live2";
       case "twitch":
-        return "rtmp://live.twitch.tv/app/";
+        return "rtmps://live.twitch.tv/app";
       case "tiktok":
-        return "rtmp://push.tiktok.com/rtmp/";
+        return "rtmp://push.tiktok.com/rtmp";
       case "instagram":
-        return "rtmp://live.instagram.com:80/rtmp/";
+        return "rtmps://live-upload.instagram.com:443/rtmp";
       case "x":
-        return "rtmp://live.x.com/rtmp/";
+        return "rtmp://live.x.com/rtmp";
       default:
         return "";
     }
@@ -81,8 +81,8 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
 
   const handleConnect = () => {
     console.log("Connecting to", platform, "with URL:", streamUrl, "and key:", streamKey);
-    // Call the onConnect callback to show AddedKeyPage
-    onConnect();
+    // Call the onConnect callback with stream key and URL
+    onConnect(streamKey, streamUrl || getDefaultStreamUrl(platform));
   };
 
   return (
