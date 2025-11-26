@@ -95,17 +95,76 @@ class StreamerApp extends AppServer {
       // Continue with normal setup even if check fails
     }
 
-    const statusUnsubscribe = session.camera.onManagedStreamStatus((data) => {
+    const statusUnsubscribe = session.camera.onManagedStreamStatus(async (data) => {
       console.log(data);
-      session.streamType = 'managed';
-      session.streamStatus = data.status;
-      session.hlsUrl = data.hlsUrl ?? null;
-      session.dashUrl = data.dashUrl ?? null;
-      session.directRtmpUrl = null;
-      session.streamId = data.streamId ?? null;
-      session.error = null;
-      session.previewUrl = data.previewUrl ?? null;
-      session.thumbnailUrl = data.thumbnailUrl ?? null;
+      const sess = session as any;
+
+      // Auto-cleanup and auto-restart failed streams
+      if (data.status?.toLowerCase() === 'error' || data.status?.toLowerCase() === 'failed') {
+        console.log('Stream entered error state, auto-stopping managed stream...');
+
+        // First broadcast the error status
+        sess.streamType = 'managed';
+        sess.streamStatus = data.status;
+        sess.error = data.message ?? 'Stream error';
+        broadcastStreamStatus(userId, formatStreamStatus(session));
+
+        // Then cleanup
+        try {
+          await session.camera.stopManagedStream();
+          console.log('Auto-stop completed successfully');
+        } catch (stopErr) {
+          console.error('Failed to auto-stop errored stream:', stopErr);
+        }
+
+        // Reset session state after stop completes
+        sess.streamStatus = 'offline';
+        sess.streamType = null;
+        sess.streamId = null;
+        sess.previewUrl = null;
+        sess.hlsUrl = null;
+        sess.dashUrl = null;
+        sess.error = null;
+
+        // Broadcast offline status
+        broadcastStreamStatus(userId, formatStreamStatus(session));
+
+        // Auto-restart: wait 2 seconds then try to restart the stream
+        console.log('Waiting 2 seconds before auto-restart...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Check if we still have restream config saved
+        if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
+          console.log('Auto-restarting stream with saved configuration...');
+          try {
+            const options = {
+              restreamDestinations: sess.restreamDestinations
+            };
+            await session.camera.startManagedStream(options);
+            console.log('Auto-restart initiated successfully');
+          } catch (restartErr) {
+            console.error('Failed to auto-restart stream:', restartErr);
+            sess.error = 'Auto-restart failed: ' + String(restartErr);
+            broadcastStreamStatus(userId, formatStreamStatus(session));
+          }
+        } else {
+          console.log('No restream configuration saved, skipping auto-restart');
+        }
+
+        return;
+      }
+
+      // Normal status update
+      sess.streamType = 'managed';
+      sess.streamStatus = data.status;
+      sess.hlsUrl = data.hlsUrl ?? null;
+      sess.dashUrl = data.dashUrl ?? null;
+      sess.directRtmpUrl = null;
+      sess.streamId = data.streamId ?? null;
+      sess.error = null;
+      sess.previewUrl = data.previewUrl ?? null;
+      sess.thumbnailUrl = data.thumbnailUrl ?? null;
+
       // Broadcast updated status to the user's SSE clients
       broadcastStreamStatus(userId, formatStreamStatus(session));
     });

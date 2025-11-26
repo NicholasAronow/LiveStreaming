@@ -10,6 +10,7 @@ interface StreamPlatformHubProps {
   streamStatus?: string;
   onStartStream?: () => void;
   onStopStream?: () => void;
+  onGoBack?: () => void;
   logs?: LogEntry[];
   maskedStreamKey?: string;
   previewUrl?: string | null;
@@ -23,6 +24,7 @@ function StreamPlatformHub({
   streamStatus = 'offline',
   onStartStream,
   onStopStream,
+  onGoBack,
   logs = [],
   maskedStreamKey,
   previewUrl = null,
@@ -30,11 +32,15 @@ function StreamPlatformHub({
 }: StreamPlatformHubProps) {
   const [duration, setDuration] = useState(0);
   const [logsExpanded, setLogsExpanded] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
 
   // Update duration when streaming
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isStreaming && streamStatus.toLowerCase() === 'streaming') {
+    const status = streamStatus.toLowerCase();
+    const isActuallyStreaming = isStreaming && (status === 'streaming' || status === 'active' || status === 'connected');
+
+    if (isActuallyStreaming) {
       interval = setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
@@ -45,6 +51,18 @@ function StreamPlatformHub({
       if (interval) clearInterval(interval);
     };
   }, [isStreaming, streamStatus]);
+
+  // Refresh iframe preview every 30 seconds to prevent pausing
+  useEffect(() => {
+    if (!showPreview || !previewUrl) return;
+
+    const refreshInterval = setInterval(() => {
+      console.log('Refreshing preview iframe to prevent pause');
+      setIframeKey(prev => prev + 1);
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [showPreview, previewUrl]);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -103,6 +121,7 @@ function StreamPlatformHub({
           {/* Video Preview iframe */}
           {showPreview && previewUrl && (
             <iframe
+              key={iframeKey}
               src={previewUrl}
               className="absolute inset-0 w-full h-full border-none"
               allowFullScreen
@@ -210,13 +229,7 @@ function StreamPlatformHub({
             {/* Quality */}
             <div className="flex items-center justify-between">
               <span className="text-[14px] text-[var(--secondary-background)]">Quality</span>
-              <span className="text-[14px] font-medium text-[var(--secondary-background)]">1080p 60fps</span>
-            </div>
-
-            {/* Dropped Frames */}
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] text-[var(--secondary-background)]">Dropped Frames</span>
-              <span className="text-[14px] font-medium text-[var(--secondary-background)]">0</span>
+              <span className="text-[14px] font-medium text-[var(--secondary-background)]">720p 30fps</span>
             </div>
           </div>
         </div>
@@ -266,7 +279,10 @@ function StreamPlatformHub({
         )}
 
         {/* Go Back Button */}
-        <button className="text-[14px] w-full h-[44px] border border-[var(--border)] rounded-[16px] font-semibold text-[var(--secondary-background)] hover:bg-gray-50 transition-colors">
+        <button
+          onClick={onGoBack}
+          className="text-[14px] w-full h-[44px] border border-[var(--border)] rounded-[16px] font-semibold text-[var(--secondary-background)] hover:bg-gray-50 transition-colors"
+        >
           Go back to Streams
         </button>
       </div>

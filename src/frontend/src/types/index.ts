@@ -28,3 +28,15 @@ export interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error';
   message: string;
 }
+
+export interface StreamConnection {
+  id: string;
+  platform: 'youtube' | 'twitch' | 'facebook' | 'instagram' | 'tiktok' | 'custom';
+  platformName: string;
+  platformLogoIcon: string;
+  maskedStreamKey: string;
+  fullStreamKey: string;
+  rtmpUrl?: string;
+  createdAt: string;
+  isActive?: boolean;
+}

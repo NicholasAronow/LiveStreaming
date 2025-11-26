@@ -7,9 +7,12 @@ import PickStreamingPlatform from "./PickStreamingPlatform";
 import StreamSetup from "./StreamSetup";
 import AddedKeyPage from "./AddedKeyPage";
 import StreamPlatformHub from "./StreamPlatformHub";
+import EstablishedStreamConnections from "./EstabllishedStreamConnections";
 import { useStreamStatus } from '../hooks/useStreamStatus';
-import { Platform, StreamConfig, LogEntry } from '../types';
+import { Platform, StreamConfig, LogEntry, StreamConnection } from '../types';
 import { isStreamingStatus, postJson, formatTimestamp, getRtmpUrl } from '../utils';
+import youtubeIcon from '../../../public/assets/youtube/YoutubePlaylogo.svg';
+import twitchIcon from '../../../public/assets/Property 1=Twitch fill.svg';
 
 const MAX_LOGS = 100;
 
@@ -32,6 +35,10 @@ function Container() {
     streamKey?: string;
     streamUrl?: string;
   } | null>(null);
+
+  // Stream connections management
+  const [connections, setConnections] = useState<StreamConnection[]>([]);
+  const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
 
   // Stream configuration state
   const [streamKey, setStreamKey] = useState('');
@@ -193,6 +200,40 @@ function Container() {
       streamKey: key,
       streamUrl: cleanUrl,
     });
+
+    // Create a new connection card
+    const newConnection: StreamConnection = {
+      id: Date.now().toString(),
+      platform: selectedPlatform.id as StreamConnection['platform'],
+      platformName: selectedPlatform.name,
+      platformLogoIcon: selectedPlatform.logoIcon,
+      maskedStreamKey: maskStreamKey(key),
+      fullStreamKey: key,
+      rtmpUrl: cleanUrl || undefined,
+      createdAt: new Date().toLocaleString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+      isActive: false
+    };
+
+    // Add to connections list (check if platform already exists and update or add new)
+    setConnections(prev => {
+      const existingIndex = prev.findIndex(conn => conn.platform === newConnection.platform);
+      if (existingIndex >= 0) {
+        // Update existing connection
+        const updated = [...prev];
+        updated[existingIndex] = newConnection;
+        return updated;
+      }
+      // Add new connection
+      return [...prev, newConnection];
+    });
+
     setShowAddedKeyPage(true);
   };
 
@@ -283,19 +324,48 @@ function Container() {
       case 'new':
         return <PickStreamingPlatform onPlatformSelect={handlePlatformSelect} />;
       case 'stream':
-        const showPreview = status.streamType === 'managed' && !!status.previewUrl && isStreaming;
+        // If a connection is selected (streaming or about to stream), show StreamPlatformHub
+        if (selectedConnection) {
+          const showPreview = status.streamType === 'managed' && !!status.previewUrl && isStreaming;
+          return (
+            <StreamPlatformHub
+              platformName={selectedConnection.platformName}
+              platformLogoIcon={selectedConnection.platformLogoIcon}
+              isStreaming={isStreaming}
+              streamStatus={currentStreamStatus}
+              onStartStream={handleStartStream}
+              onStopStream={handleStopStream}
+              onGoBack={() => {
+                setSelectedConnection(null);
+                setIsStreaming(false);
+                setCurrentStreamStatus('offline');
+                setLogs([]);
+              }}
+              logs={logs}
+              maskedStreamKey={selectedConnection.maskedStreamKey}
+              previewUrl={status.previewUrl ?? null}
+              showPreview={showPreview}
+            />
+          );
+        }
+        // Otherwise show the list of connections
         return (
-          <StreamPlatformHub
-            platformName={connectedPlatform?.name}
-            platformLogoIcon={connectedPlatform?.logoIcon}
-            isStreaming={isStreaming}
-            streamStatus={currentStreamStatus}
-            onStartStream={handleStartStream}
-            onStopStream={handleStopStream}
-            logs={logs}
-            maskedStreamKey={connectedPlatform?.streamKey ? maskStreamKey(connectedPlatform.streamKey) : undefined}
-            previewUrl={status.previewUrl ?? null}
-            showPreview={showPreview}
+          <EstablishedStreamConnections
+            connections={connections}
+            onOpenConnection={(connection: StreamConnection) => {
+              setSelectedConnection(connection);
+              // Set the connected platform for stream operations
+              setConnectedPlatform({
+                id: connection.platform,
+                name: connection.platformName,
+                icon: connection.platformLogoIcon,
+                logoIcon: connection.platformLogoIcon,
+                streamKey: connection.fullStreamKey,
+                streamUrl: connection.rtmpUrl
+              });
+              setStreamKey(connection.fullStreamKey);
+              setStreamUrl(connection.rtmpUrl || '');
+            }}
           />
         );
       case 'settings':
