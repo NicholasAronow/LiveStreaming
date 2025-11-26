@@ -14,34 +14,34 @@ export default defineConfig({
       '.ngrok.dev',
       '.ngrok.io',
       '.ngrok.app',
-      'general.dev.tpa.ngrok.app'
+      'localhost'
     ],
     proxy: {
-      // Proxy ALL backend requests for session cookie compatibility
+      // Proxy ALL backend requests to localhost:3000
       '/api': {
-        target: 'https://general.dev.tpa.ngrok.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
       '/stream-status': {
-        target: 'https://general.dev.tpa.ngrok.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
       '/mentra-auth': {
-        target: 'https://general.dev.tpa.ngrok.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
       '/__mentra': {
-        target: 'https://general.dev.tpa.ngrok.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
     },
   },
   build: {
-    outDir: './dist',
+    outDir: '../../dist/frontend',
     emptyOutDir: true,
   },
 })

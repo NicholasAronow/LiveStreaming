@@ -476,6 +476,26 @@ export function setupExpressRoutes(
       res.status(400).json({ ok: false, error: String(err?.message ?? err) });
     }
   });
+
+  // Serve static files from the built frontend (in production)
+  if (process.env.NODE_ENV === 'production') {
+    const staticPath = path.join(__dirname, '../dist/frontend');
+    app.use(express.static(staticPath));
+
+    // Catch-all route for React app - must be registered after all API routes
+    app.get('*', (req: any, res: any, next: any) => {
+      // Skip API routes and specific backend routes
+      if (req.path.startsWith('/api') ||
+          req.path.startsWith('/webview') ||
+          req.path.startsWith('/stream-status') ||
+          req.path.startsWith('/mentra-auth') ||
+          req.path.startsWith('/__mentra') ||
+          req.path.startsWith('/webhook')) {
+        return next();
+      }
+      res.sendFile(path.join(__dirname, '../dist/frontend/index.html'));
+    });
+  }
 }
 
 /**

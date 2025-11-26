@@ -4,7 +4,11 @@
   "main": "index.js",
   "scripts": {
     "start": "bun src/index.ts",
-    "dev": "bun --hot src/index.ts",
+    "dev": "concurrently \"bun run dev:backend\" \"bun run dev:frontend\"",
+    "dev:backend": "bun --watch src/index.ts",
+    "dev:frontend": "cd src/frontend && bunx --bun vite",
+    "build:frontend": "cd src/frontend && bunx --bun vite build",
+    "build:frontend:prod": "cd src/frontend && bun install --production && bunx --bun vite build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -22,6 +26,7 @@
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.14",
     "@types/ws": "^8.18.0",
+    "concurrently": "^9.2.1",
     "typescript": "^5.0.0"
   }
 }
