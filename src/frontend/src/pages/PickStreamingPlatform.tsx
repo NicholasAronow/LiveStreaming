@@ -5,7 +5,7 @@ import youtubeIconFill from "../../../public/assets/youtube/Property 1=Youtube f
 import youtubeLogo from "../../../public/assets/youtube/YoutubeSoloLogo.svg";
 import twitchIcon from "../../../public/assets/Property 1=Twitch.svg";
 import twitchIconFill from "../../../public/assets/Property 1=Twitch fill.svg";
-import instagram from "../../../public/assets/Property 1=instagram.svg";
+import instagram from "../../../public/assets/Property 1=Instagram.svg";
 import instagramFill from "../../../public/assets/Property 1=Instagram fill.svg";
 import tiktokIcon from "../../../public/assets/Property 1=Tik Tok.svg";
 import tiktokIconFill from "../../../public/assets/Property 1=Tik Tok fill.svg";
