@@ -8,6 +8,8 @@ import { StatusLogs } from './components/StatusLogs';
 import { useStreamStatus } from './hooks/useStreamStatus';
 import { Platform, LogEntry, StreamConfig as StreamConfigType } from './types';
 import { isStreamingStatus, postJson, formatTimestamp, getRtmpUrl } from './utils';
+import Splash from './pages/Splash';
+import Container from './pages/Container';
 
 const MAX_LOGS = 100;
 
@@ -207,41 +209,46 @@ function AuthenticatedApp({ userId }: { userId: string }) {
   const showLogs = status.streamType === 'unmanaged' && (logs.length > 0 || isStreaming);
 
   return (
-    <div className="h-screen flex flex-col max-w-full mx-auto bg-bg-primary md:max-w-[500px] md:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-      <StatusBar
-        status={currentStreamStatus || status.streamStatus || 'offline'}
-        batteryPercent={status.glassesBatteryPercent ?? null}
-        isStreaming={isStreaming}
-        onToggleStream={handleToggleStream}
-      />
 
-      <div className="bg-bg-secondary p-5 border-b border-border max-[600px]:p-3">
-        <PlatformSelector
-          selectedPlatform={config.platform}
-          onPlatformChange={handlePlatformChange}
-          disabled={isStreaming}
-        />
-        <StreamConfig
-          platform={config.platform}
-          streamKey={config.streamKey}
-          rtmpUrl={config.customRtmpUrl}
-          useCloudflare={config.useCloudflareManaged}
-          onStreamKeyChange={(value) => setConfig((prev) => ({ ...prev, streamKey: value }))}
-          onRtmpUrlChange={(value) => setConfig((prev) => ({ ...prev, customRtmpUrl: value }))}
-          onCloudflareToggle={(checked) => setConfig((prev) => ({ ...prev, useCloudflareManaged: checked }))}
-          disabled={isStreaming}
-        />
-      </div>
+    <Container/>
 
-      <VideoDisplay
-        previewUrl={status.previewUrl ?? null}
-        showPreview={showPreview}
-        showLogs={showLogs}
-        useManaged={useManaged}
-      />
 
-      <StatusLogs logs={logs} visible={showLogs} />
-    </div>
+
+    // <div className="h-screen flex flex-col max-w-full mx-auto bg-bg-primary md:max-w-[500px] md:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+    //   <StatusBar
+    //     status={currentStreamStatus || status.streamStatus || 'offline'}
+    //     batteryPercent={status.glassesBatteryPercent ?? null}
+    //     isStreaming={isStreaming}
+    //     onToggleStream={handleToggleStream}
+    //   />
+
+    //   <div className="bg-bg-secondary p-5 border-b border-border max-[600px]:p-3">
+    //     <PlatformSelector
+    //       selectedPlatform={config.platform}
+    //       onPlatformChange={handlePlatformChange}
+    //       disabled={isStreaming}
+    //     />
+    //     <StreamConfig
+    //       platform={config.platform}
+    //       streamKey={config.streamKey}
+    //       rtmpUrl={config.customRtmpUrl}
+    //       useCloudflare={config.useCloudflareManaged}
+    //       onStreamKeyChange={(value) => setConfig((prev) => ({ ...prev, streamKey: value }))}
+    //       onRtmpUrlChange={(value) => setConfig((prev) => ({ ...prev, customRtmpUrl: value }))}
+    //       onCloudflareToggle={(checked) => setConfig((prev) => ({ ...prev, useCloudflareManaged: checked }))}
+    //       disabled={isStreaming}
+    //     />
+    //   </div>
+
+    //   <VideoDisplay
+    //     previewUrl={status.previewUrl ?? null}
+    //     showPreview={showPreview}
+    //     showLogs={showLogs}
+    //     useManaged={useManaged}
+    //   />
+
+    //   <StatusLogs logs={logs} visible={showLogs} />
+    // </div>
   );
 }
 
