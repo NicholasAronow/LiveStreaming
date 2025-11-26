@@ -40,7 +40,7 @@ function Container() {
   const [currentStreamStatus, setCurrentStreamStatus] = useState('offline');
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const skipSplashAnimation = false; // Set to true to skip splash
+  const skipSplashAnimation = true; // Set to true to skip splash
 
   // Add log entry
   const addLog = useCallback((type: LogEntry['type'], message: string) => {
@@ -67,6 +67,20 @@ function Container() {
       const oldStatus = currentStreamStatus;
       setCurrentStreamStatus(newStatus.streamStatus);
 
+      // Log status changes for managed streams
+      if (newStatus.streamType === 'managed' && oldStatus !== newStatus.streamStatus) {
+        const statusLower = (newStatus.streamStatus || '').toLowerCase();
+        let logType: LogEntry['type'] = 'info';
+        if (statusLower === 'active' || statusLower === 'connected' || statusLower === 'streaming') {
+          logType = 'success';
+        } else if (statusLower === 'error' || statusLower === 'failed') {
+          logType = 'error';
+        } else if (statusLower === 'stopping' || statusLower === 'disconnecting') {
+          logType = 'warning';
+        }
+        addLog(logType, 'Status: ' + newStatus.streamStatus);
+      }
+
       // Log status changes for unmanaged streams
       if (newStatus.streamType === 'unmanaged' && oldStatus !== newStatus.streamStatus) {
         const statusLower = (newStatus.streamStatus || '').toLowerCase();
@@ -92,6 +106,11 @@ function Container() {
     if (newStatus.error) {
       console.error('Stream error:', newStatus.error);
       addLog('error', newStatus.error);
+    }
+
+    // Handle preview URL for managed streams
+    if (newStatus.streamType === 'managed' && newStatus.previewUrl) {
+      addLog('info', 'Stream preview available');
     }
   });
 
@@ -264,6 +283,7 @@ function Container() {
       case 'new':
         return <PickStreamingPlatform onPlatformSelect={handlePlatformSelect} />;
       case 'stream':
+        const showPreview = status.streamType === 'managed' && !!status.previewUrl && isStreaming;
         return (
           <StreamPlatformHub
             platformName={connectedPlatform?.name}
@@ -274,6 +294,8 @@ function Container() {
             onStopStream={handleStopStream}
             logs={logs}
             maskedStreamKey={connectedPlatform?.streamKey ? maskStreamKey(connectedPlatform.streamKey) : undefined}
+            previewUrl={status.previewUrl ?? null}
+            showPreview={showPreview}
           />
         );
       case 'settings':

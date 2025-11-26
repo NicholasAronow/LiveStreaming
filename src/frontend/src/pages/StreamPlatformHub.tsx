@@ -12,6 +12,8 @@ interface StreamPlatformHubProps {
   onStopStream?: () => void;
   logs?: LogEntry[];
   maskedStreamKey?: string;
+  previewUrl?: string | null;
+  showPreview?: boolean;
 }
 
 function StreamPlatformHub({
@@ -22,9 +24,12 @@ function StreamPlatformHub({
   onStartStream,
   onStopStream,
   logs = [],
-  maskedStreamKey
+  maskedStreamKey,
+  previewUrl = null,
+  showPreview = false
 }: StreamPlatformHubProps) {
   const [duration, setDuration] = useState(0);
+  const [logsExpanded, setLogsExpanded] = useState(false);
 
   // Update duration when streaming
   useEffect(() => {
@@ -68,26 +73,52 @@ function StreamPlatformHub({
     return '#6B7280'; // gray
   };
 
+  const getStatusLabel = () => {
+    const status = streamStatus.toLowerCase();
+    if (status === 'streaming' || status === 'active' || status === 'connected') {
+      return 'Live';
+    } else if (status === 'connecting' || status === 'starting' || status === 'initializing') {
+      return 'Starting';
+    } else if (status === 'stopping' || status === 'disconnecting') {
+      return 'Stopping';
+    } else if (status === 'error' || status === 'failed') {
+      return 'Error';
+    }
+    return 'Off';
+  };
+
   return (
     <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white">
       <div className="flex flex-col gap-[12px]">
         {/* Stream Preview */}
-        <div className="relative w-full aspect-video rounded-[16px] flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #1E2939 0%, #101828 100%)' }}>
+        <div className="relative w-full aspect-video rounded-[16px] overflow-hidden" style={{ background: 'linear-gradient(135deg, #1E2939 0%, #101828 100%)' }}>
           {/* Status Toggle */}
-          <div className="absolute top-[19px] left-[19px]">
+          <div className="absolute top-[19px] left-[19px] z-10">
             <div className="flex rounded-full px-[12px] h-[24px] justify-center items-center gap-[4px]" style={{ backgroundColor: getStatusColor() }}>
               <div className="w-[8px] h-[8px] rounded-full bg-white"></div>
-              <span className="text-white text-[12px] font-medium capitalize">{streamStatus}</span>
+              <span className="text-white text-[12px] font-medium">{getStatusLabel()}</span>
             </div>
           </div>
 
-          {/* Video Camera Icon */}
-          <img src={cameraStreamIcon} alt="Camera" className="mb-[16px] w-[64px] h-[64px]" />
+          {/* Video Preview iframe */}
+          {showPreview && previewUrl && (
+            <iframe
+              src={previewUrl}
+              className="absolute inset-0 w-full h-full border-none"
+              allowFullScreen
+              allow="autoplay; fullscreen"
+            />
+          )}
 
-          {/* Preview Text */}
-          <p className="text-[#94A3B8] text-[16px] font-normal">
-            {isStreaming ? 'Streaming...' : 'Stream preview will appear here'}
-          </p>
+          {/* Placeholder when not streaming */}
+          {!showPreview && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <img src={cameraStreamIcon} alt="Camera" className="mb-[16px] w-[64px] h-[64px]" />
+              <p className="text-[#94A3B8] text-[16px] font-normal">
+                {isStreaming ? 'Initializing stream...' : 'Stream preview will appear here'}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Go Live / Stop Button */}
@@ -161,8 +192,8 @@ function StreamPlatformHub({
             {/* Status */}
             <div className="flex items-center justify-between">
               <span className="text-[14px] text-[var(--secondary-background)]">Status</span>
-              <span className="text-[14px] font-medium text-[var(--secondary-background)] capitalize">
-                {streamStatus}
+              <span className="text-[14px] font-medium text-[var(--secondary-background)]">
+                {getStatusLabel()}
               </span>
             </div>
 
@@ -192,25 +223,45 @@ function StreamPlatformHub({
 
         {/* Logs Section - Only show if there are logs */}
         {logs.length > 0 && (
-          <div className="bg-[#F5F5F5] rounded-[16px] p-[16px]">
-            <h3 className="text-[16px] text-[var(--secondary-background)] mb-[12px] font-normal">
-              Stream Logs
-            </h3>
-            <div className="flex flex-col gap-[8px] max-h-[200px] overflow-y-auto">
-              {logs.slice(-10).map((log, index) => (
-                <div key={index} className="text-[12px] font-mono">
-                  <span className="text-[var(--muted-forground)]">{log.timestamp}</span>{' '}
-                  <span className={
-                    log.type === 'error' ? 'text-red-600' :
-                    log.type === 'success' ? 'text-green-600' :
-                    log.type === 'warning' ? 'text-yellow-600' :
-                    'text-[var(--secondary-background)]'
-                  }>
-                    {log.message}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="bg-[#F5F5F5] rounded-[16px] overflow-hidden">
+            {/* Logs Header - Clickable to expand/collapse */}
+            <button
+              onClick={() => setLogsExpanded(!logsExpanded)}
+              className="w-full p-[16px] flex items-center justify-between hover:bg-[#ECECEC] transition-colors"
+            >
+              <h3 className="text-[16px] text-[var(--secondary-background)] font-normal">
+                Stream Logs {logs.length > 0 && <span className="text-[14px] text-[var(--muted-forground)]">({logs.length})</span>}
+              </h3>
+              <svg
+                className={`w-[20px] h-[20px] text-[var(--secondary-background)] transition-transform duration-200 ${
+                  logsExpanded ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Logs Content - Collapsible */}
+            {logsExpanded && (
+              <div className="px-[16px] pt-[16px] pb-[16px] flex flex-col gap-[8px] max-h-[300px] overflow-y-auto">
+                {logs.map((log, index) => (
+                  <div key={index} className="text-[12px] font-mono">
+                    <span className="text-[var(--muted-forground)]">{log.timestamp}</span>{' '}
+                    <span className={
+                      log.type === 'error' ? 'text-red-600' :
+                      log.type === 'success' ? 'text-green-600' :
+                      log.type === 'warning' ? 'text-yellow-600' :
+                      'text-[var(--secondary-background)]'
+                    }>
+                      {log.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
