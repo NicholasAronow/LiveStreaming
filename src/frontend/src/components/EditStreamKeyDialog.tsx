@@ -79,7 +79,10 @@ function EditStreamKeyDialog({
           </h2>
 
           <div className="flex-1 self-stretch flex justify-end">
-            <div className={`rounded-full ${isStreaming ? 'bg-[var(--char_T)]' : 'bg-gray-400'} flex justify-center items-center h-[24px] px-[8px] text-white text-[12px] font-medium`}>
+            <div
+              className="rounded-full flex justify-center items-center h-[24px] px-[8px] text-white text-[12px] font-medium"
+              style={{ backgroundColor: isStreaming ? 'var(--char_T)' : '#9ca3af' }}
+            >
               {isStreaming ? 'Connected' : 'Disconnected'}
             </div>
           </div>

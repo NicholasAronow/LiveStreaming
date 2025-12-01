@@ -5,9 +5,11 @@ interface EstablishedStreamConnectionsProps {
   connections: StreamConnection[];
   onOpenConnection: (connection: StreamConnection) => void;
   onNavigateToNew?: () => void;
+  activeConnectionId?: string | null;
+  isStreaming?: boolean;
 }
 
-function EstabllishedStreamConnections({ connections, onOpenConnection, onNavigateToNew }: EstablishedStreamConnectionsProps) {
+function EstabllishedStreamConnections({ connections, onOpenConnection, onNavigateToNew, activeConnectionId, isStreaming }: EstablishedStreamConnectionsProps) {
   return (
     <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA]">
       <div className="flex flex-col gap-[24px]">
@@ -36,13 +38,19 @@ function EstabllishedStreamConnections({ connections, onOpenConnection, onNaviga
             </button>
           </div>
         ) : (
-          connections.map((connection) => (
-            <StreamConnectionCard
-              key={connection.id}
-              connection={connection}
-              onOpen={onOpenConnection}
-            />
-          ))
+          connections.map((connection) => {
+            const isThisActive = isStreaming && activeConnectionId === connection.id;
+            const shouldGreyOut = isStreaming && !isThisActive;
+            return (
+              <StreamConnectionCard
+                key={connection.id}
+                connection={connection}
+                onOpen={onOpenConnection}
+                isActive={isThisActive}
+                isGreyedOut={shouldGreyOut}
+              />
+            );
+          })
         )}
       </div>
     </div>

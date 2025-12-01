@@ -31,7 +31,7 @@ export interface LogEntry {
 
 export interface StreamConnection {
   id: string;
-  platform: 'youtube' | 'twitch' | 'facebook' | 'instagram' | 'tiktok' | 'custom';
+  platform: 'youtube' | 'twitch' | 'facebook' | 'instagram' | 'tiktok' | 'x' | 'custom';
   platformName: string;
   platformLogoIcon: string;
   maskedStreamKey: string;

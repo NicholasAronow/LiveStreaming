@@ -52,6 +52,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     }
   });
   const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
+  const [activeStreamingConnectionId, setActiveStreamingConnectionId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -296,6 +297,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
     setCurrentStreamStatus('Connecting');
     setIsStreaming(true);
+    setActiveStreamingConnectionId(selectedConnection?.id || null);
     addLog('info', '--- New stream session ---');
     addLog('info', 'Starting managed stream...');
     if (platform !== 'here') {
@@ -311,6 +313,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     if (result.ok === false) {
       setCurrentStreamStatus('Error');
       setIsStreaming(false);
+      setActiveStreamingConnectionId(null);
       addLog('error', 'Failed to start: ' + (result.error || 'Unknown error'));
       alert('Failed to start stream: ' + (result.error || 'Unknown error'));
     } else {
@@ -332,6 +335,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
       addLog('success', 'Stream stopped');
       setIsStreaming(false);
       setCurrentStreamStatus('offline');
+      setActiveStreamingConnectionId(null);
     }
   };
 
@@ -499,6 +503,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
               setStreamUrl(connection.rtmpUrl || '');
             }}
             onNavigateToNew={() => setActiveTab('new')}
+            activeConnectionId={activeStreamingConnectionId}
+            isStreaming={isStreaming}
           />
         );
       case 'settings':
