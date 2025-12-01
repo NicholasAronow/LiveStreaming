@@ -54,7 +54,7 @@ function App() {
   //   );
   // }
 
-  return <AuthenticatedApp userId={"aryan.mentra.dev.public@gmail.com"} />;
+  return <AuthenticatedApp userId={userId || ""} />;
 }
 
 function AuthenticatedApp({ userId }: { userId: string }) {
