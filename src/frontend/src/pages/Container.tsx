@@ -41,16 +41,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
     streamUrl?: string;
   } | null>(null);
 
-  // Stream connections management - load from localStorage on mount
-  const [connections, setConnections] = useState<StreamConnection[]>(() => {
-    try {
-      const saved = localStorage.getItem('streamConnections');
-      return saved ? JSON.parse(saved) : [];
-    } catch (error) {
-      console.error('Failed to load connections from localStorage:', error);
-      return [];
-    }
-  });
+  // Stream connections management - load from API on mount
+  const [connections, setConnections] = useState<StreamConnection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
   const [activeStreamingConnectionId, setActiveStreamingConnectionId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -137,14 +129,43 @@ function Container({ userId: userIdProp }: ContainerProps) {
     }
   });
 
-  // Save connections to localStorage whenever they change
+  // Fetch connections from API on mount
   useEffect(() => {
-    try {
-      localStorage.setItem('streamConnections', JSON.stringify(connections));
-    } catch (error) {
-      console.error('Failed to save connections to localStorage:', error);
-    }
-  }, [connections]);
+    const fetchConnections = async () => {
+      if (!userId) return;
+
+      try {
+        const response = await fetch('/api/stream-configs', {
+          headers: {
+            'X-User-Id': userId
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ok && data.configs) {
+            // Transform API configs to StreamConnection format
+            const transformedConnections: StreamConnection[] = data.configs.map((config: any) => ({
+              id: config._id,
+              platform: config.platform,
+              platformName: config.platformName,
+              platformLogoIcon: config.platformLogoIcon,
+              maskedStreamKey: config.maskedStreamKey,
+              fullStreamKey: config.streamKey,
+              rtmpUrl: config.rtmpUrl || undefined,
+              createdAt: config.createdAt,
+              isActive: false
+            }));
+            setConnections(transformedConnections);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch connections from API:', error);
+      }
+    };
+
+    fetchConnections();
+  }, [userId]);
 
   useEffect(() => {
     if (skipSplashAnimation) {
@@ -191,8 +212,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setSelectedPlatform(null);
   };
 
-  const handleConnect = (key: string, url: string) => {
-    if (!selectedPlatform) return;
+  const handleConnect = async (key: string, url: string) => {
+    if (!selectedPlatform || !userId) return;
 
     // Store the stream configuration (use empty string if url is just whitespace)
     const cleanUrl = url.trim();
@@ -227,37 +248,74 @@ function Container({ userId: userIdProp }: ContainerProps) {
     });
 
     // Create a new connection card
-    const newConnection: StreamConnection = {
-      id: Date.now().toString(),
-      platform: selectedPlatform.id as StreamConnection['platform'],
-      platformName: selectedPlatform.name,
-      platformLogoIcon: selectedPlatform.logoIcon,
-      maskedStreamKey: maskStreamKey(key),
-      fullStreamKey: key,
-      rtmpUrl: cleanUrl || undefined,
-      createdAt: new Date().toLocaleString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        month: 'numeric',
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      isActive: false
-    };
-
-    // Add to connections list (check if platform already exists and update or add new)
-    setConnections(prev => {
-      const existingIndex = prev.findIndex(conn => conn.platform === newConnection.platform);
-      if (existingIndex >= 0) {
-        // Update existing connection
-        const updated = [...prev];
-        updated[existingIndex] = newConnection;
-        return updated;
-      }
-      // Add new connection
-      return [...prev, newConnection];
+    const createdAt = new Date().toLocaleString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric'
     });
+
+    const maskedKey = maskStreamKey(key);
+
+    // Save to API
+    try {
+      const response = await fetch('/api/stream-configs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          platform: selectedPlatform.id,
+          streamKey: key,
+          rtmpUrl: cleanUrl,
+          platformName: selectedPlatform.name,
+          platformLogoIcon: selectedPlatform.logoIcon,
+          maskedStreamKey: maskedKey,
+          createdAt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok && data.config) {
+          // Update local state with saved config
+          const newConnection: StreamConnection = {
+            id: data.config._id,
+            platform: data.config.platform,
+            platformName: data.config.platformName,
+            platformLogoIcon: data.config.platformLogoIcon,
+            maskedStreamKey: data.config.maskedStreamKey,
+            fullStreamKey: data.config.streamKey,
+            rtmpUrl: data.config.rtmpUrl || undefined,
+            createdAt: data.config.createdAt,
+            isActive: false
+          };
+
+          // Add to connections list (check if platform already exists and update or add new)
+          setConnections(prev => {
+            const existingIndex = prev.findIndex(conn => conn.platform === newConnection.platform);
+            if (existingIndex >= 0) {
+              // Update existing connection
+              const updated = [...prev];
+              updated[existingIndex] = newConnection;
+              return updated;
+            }
+            // Add new connection
+            return [...prev, newConnection];
+          });
+
+          addLog('success', 'Configuration saved to database');
+        }
+      } else {
+        addLog('error', 'Failed to save configuration to database');
+      }
+    } catch (error) {
+      console.error('Failed to save connection to API:', error);
+      addLog('error', 'Failed to save configuration');
+    }
 
     setShowAddedKeyPage(true);
   };
@@ -340,7 +398,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
   };
 
   const handleDeleteConnection = async () => {
-    if (!selectedConnection) return;
+    if (!selectedConnection || !userId) return;
 
     setIsDeleting(true);
 
@@ -363,8 +421,26 @@ function Container({ userId: userIdProp }: ContainerProps) {
       addLog('success', 'Stream stopped');
     }
 
-    // Now remove from connections array
-    setConnections(prev => prev.filter(conn => conn.id !== selectedConnection.id));
+    // Delete from API
+    try {
+      const response = await fetch(`/api/stream-configs/${selectedConnection.platform}`, {
+        method: 'DELETE',
+        headers: {
+          'X-User-Id': userId
+        }
+      });
+
+      if (response.ok) {
+        addLog('success', 'Configuration deleted from database');
+        // Now remove from connections array
+        setConnections(prev => prev.filter(conn => conn.id !== selectedConnection.id));
+      } else {
+        addLog('error', 'Failed to delete from database');
+      }
+    } catch (error) {
+      console.error('Failed to delete connection from API:', error);
+      addLog('error', 'Failed to delete configuration');
+    }
 
     // Clear selected connection and go back to list
     setSelectedConnection(null);
@@ -378,40 +454,71 @@ function Container({ userId: userIdProp }: ContainerProps) {
     addLog('info', `Deleted stream key for ${selectedConnection.platformName}`);
   };
 
-  const handleEditConnection = (newKey: string) => {
-    if (!selectedConnection || !newKey.trim()) return;
+  const handleEditConnection = async (newKey: string) => {
+    if (!selectedConnection || !newKey.trim() || !userId) return;
 
     const trimmedKey = newKey.trim();
+    const maskedKey = maskStreamKey(trimmedKey);
 
-    // Update the connection with new key
-    setConnections(prev => prev.map(conn => {
-      if (conn.id === selectedConnection.id) {
-        return {
-          ...conn,
-          fullStreamKey: trimmedKey,
-          maskedStreamKey: maskStreamKey(trimmedKey)
-        };
-      }
-      return conn;
-    }));
-
-    // Update selected connection
-    const updatedConnection = {
-      ...selectedConnection,
-      fullStreamKey: trimmedKey,
-      maskedStreamKey: maskStreamKey(trimmedKey)
-    };
-    setSelectedConnection(updatedConnection);
-
-    // Update connected platform
-    if (connectedPlatform) {
-      setConnectedPlatform({
-        ...connectedPlatform,
-        streamKey: trimmedKey
+    // Update via API
+    try {
+      const response = await fetch('/api/stream-configs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          platform: selectedConnection.platform,
+          streamKey: trimmedKey,
+          rtmpUrl: selectedConnection.rtmpUrl || '',
+          platformName: selectedConnection.platformName,
+          platformLogoIcon: selectedConnection.platformLogoIcon,
+          maskedStreamKey: maskedKey,
+          createdAt: selectedConnection.createdAt
+        })
       });
-    }
 
-    addLog('info', `Updated stream key for ${selectedConnection.platformName}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          // Update the connection with new key
+          setConnections(prev => prev.map(conn => {
+            if (conn.id === selectedConnection.id) {
+              return {
+                ...conn,
+                fullStreamKey: trimmedKey,
+                maskedStreamKey: maskedKey
+              };
+            }
+            return conn;
+          }));
+
+          // Update selected connection
+          const updatedConnection = {
+            ...selectedConnection,
+            fullStreamKey: trimmedKey,
+            maskedStreamKey: maskedKey
+          };
+          setSelectedConnection(updatedConnection);
+
+          // Update connected platform
+          if (connectedPlatform) {
+            setConnectedPlatform({
+              ...connectedPlatform,
+              streamKey: trimmedKey
+            });
+          }
+
+          addLog('success', `Updated stream key for ${selectedConnection.platformName}`);
+        }
+      } else {
+        addLog('error', 'Failed to update configuration in database');
+      }
+    } catch (error) {
+      console.error('Failed to update connection in API:', error);
+      addLog('error', 'Failed to update configuration');
+    }
   };
 
   const handleOpenDialog = () => {
@@ -514,13 +621,28 @@ function Container({ userId: userIdProp }: ContainerProps) {
               <h2 className="text-[24px] font-semibold text-[var(--secondary-background)] mb-[24px]">Settings</h2>
 
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (window.confirm('Are you sure you want to clear all saved stream keys? This action cannot be undone.')) {
-                    setConnections([]);
-                    setSelectedConnection(null);
-                    setConnectedPlatform(null);
-                    localStorage.removeItem('streamConnections');
-                    alert('All stream keys have been cleared.');
+                    if (!userId) return;
+
+                    // Delete all connections from API
+                    try {
+                      const deletePromises = connections.map(conn =>
+                        fetch(`/api/stream-configs/${conn.platform}`, {
+                          method: 'DELETE',
+                          headers: { 'X-User-Id': userId }
+                        })
+                      );
+                      await Promise.all(deletePromises);
+
+                      setConnections([]);
+                      setSelectedConnection(null);
+                      setConnectedPlatform(null);
+                      alert('All stream keys have been cleared.');
+                    } catch (error) {
+                      console.error('Failed to clear all configs:', error);
+                      alert('Failed to clear all stream keys. Please try again.');
+                    }
                   }
                 }}
                 className="w-full bg-red-500 text-white rounded-[16px] px-[24px] h-[48px] text-[16px] font-medium hover:bg-red-600 transition-colors"

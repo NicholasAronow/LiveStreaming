@@ -3,6 +3,7 @@ import type { AppSession } from '@mentra/sdk';
 import express, { Response } from 'express';
 import path from 'path';
 import cors from 'cors';
+import StreamConfig from './model/StreamConfig';
 
 /**
  * Helper function to get userId from request
@@ -531,7 +532,7 @@ export function setupExpressRoutes(
         res.status(400).json({ ok: false, error: 'Provide restreamUrls: string[]' });
         return;
       }
-      
+
       // Build ManagedStreamOptions with restream destinations
       const options = {
         restreamDestinations: restreamUrls.map((url, index) => ({
@@ -539,15 +540,95 @@ export function setupExpressRoutes(
           name: `destination-${index + 1}`
         }))
       };
-      
+
       // Store the restream destinations in the session
       req.activeSession.restreamDestinations = options.restreamDestinations;
-      
+
       await req.activeSession.camera.startManagedStream(options);
       broadcastStreamStatus(req.authUserId, formatStreamStatus(req.activeSession));
       res.json({ ok: true });
     } catch (err: any) {
       res.status(400).json({ ok: false, error: String(err?.message ?? err) });
+    }
+  });
+
+  // API: Get all stream configs for a user
+  app.get('/api/stream-configs', async (req: any, res: any) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized - no userId' });
+        return;
+      }
+
+      const configs = await StreamConfig.find({ userId }).sort({ updatedAt: -1 });
+      res.json({ ok: true, configs });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+    }
+  });
+
+  // API: Save or update a stream config
+  app.post('/api/stream-configs', async (req: any, res: any) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized - no userId' });
+        return;
+      }
+
+      const { platform, streamKey, rtmpUrl, platformName, platformLogoIcon, maskedStreamKey, createdAt } = req.body;
+
+      if (!platform || !streamKey || !platformName || !platformLogoIcon || !maskedStreamKey) {
+        res.status(400).json({ ok: false, error: 'Missing required fields' });
+        return;
+      }
+
+      // Upsert: update if exists, create if not (based on userId + platform)
+      const config = await StreamConfig.findOneAndUpdate(
+        { userId, platform },
+        {
+          userId,
+          streamKey,
+          rtmpUrl: rtmpUrl || '',
+          platform,
+          platformName,
+          platformLogoIcon,
+          maskedStreamKey,
+          createdAt: createdAt || new Date().toLocaleString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            month: 'numeric',
+            day: 'numeric',
+            year: 'numeric'
+          }),
+          updatedAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+
+      res.json({ ok: true, config });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+    }
+  });
+
+  // API: Delete a stream config
+  app.delete('/api/stream-configs/:platform', async (req: any, res: any) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized - no userId' });
+        return;
+      }
+
+      const { platform } = req.params;
+      await StreamConfig.findOneAndDelete({ userId, platform });
+
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String(err?.message ?? err) });
     }
   });
 

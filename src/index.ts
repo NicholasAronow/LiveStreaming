@@ -3,6 +3,7 @@ import path from 'path';
 import { setupExpressRoutes } from './webview';
 import { handleToolCall } from './tools';
 import { broadcastStreamStatus, formatStreamStatus } from './webview';
+import { connectDB } from './db';
 
 const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => { throw new Error('PACKAGE_NAME is not set in .env file'); })();
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error('MENTRAOS_API_KEY is not set in .env file'); })();
@@ -259,4 +260,7 @@ class StreamerApp extends AppServer {
 // Start the server
 const app = new StreamerApp();
 
-app.start().catch(console.error);
+// Connect to MongoDB and start the server
+connectDB()
+  .then(() => app.start())
+  .catch(console.error);
