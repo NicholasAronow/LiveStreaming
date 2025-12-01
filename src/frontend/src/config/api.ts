@@ -1,5 +1,6 @@
-// Get backend URL from environment variable
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+// Get backend URL - use current origin in production, localhost in dev
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3000' : window.location.origin);
 
 // Helper to build absolute API URLs
 export function getApiUrl(path: string): string {
