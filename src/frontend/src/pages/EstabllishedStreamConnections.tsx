@@ -10,7 +10,7 @@ interface EstablishedStreamConnectionsProps {
 function EstabllishedStreamConnections({ connections, onOpenConnection, onNavigateToNew }: EstablishedStreamConnectionsProps) {
   return (
     <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA]">
-      <div className="flex flex-col gap-[16px]">
+      <div className="flex flex-col gap-[24px]">
         {connections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pt-[100px] px-[24px]">
             <div className="text-center mb-[32px]">

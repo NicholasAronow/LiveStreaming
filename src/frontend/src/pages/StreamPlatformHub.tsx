@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import trashIcon from '../../../public/assets/trash.svg'
 import cameraStreamIcon from '../../../public/assets/cameraStreamIcon.svg'
 import { LogEntry } from '../types'
-import EditDeleteDialog from '../components/EditDeleteDialog'
+import EditStreamKeyDialog from '../components/EditStreamKeyDialog'
+import DeleteStreamDialog from '../components/DeleteStreamDialog'
 
 interface StreamPlatformHubProps {
   platformName?: string;
@@ -12,11 +13,9 @@ interface StreamPlatformHubProps {
   onStartStream?: () => void;
   onStopStream?: () => void;
   onGoBack?: () => void;
-  onOpenDialog?: () => void;
-  isDialogOpen?: boolean;
-  onCloseDialog?: () => void;
   onDelete?: () => void;
   onSaveEdit?: (newKey: string) => void;
+  onFetchStreamKey?: () => Promise<string>;
   isDeleting?: boolean;
   currentStreamKey?: string;
   logs?: LogEntry[];
@@ -33,11 +32,9 @@ function StreamPlatformHub({
   onStartStream,
   onStopStream,
   onGoBack,
-  onOpenDialog,
-  isDialogOpen = false,
-  onCloseDialog,
   onDelete,
   onSaveEdit,
+  onFetchStreamKey,
   isDeleting = false,
   currentStreamKey = '',
   logs = [],
@@ -48,6 +45,8 @@ function StreamPlatformHub({
   const [duration, setDuration] = useState(0);
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Update duration when streaming
   useEffect(() => {
@@ -122,13 +121,23 @@ function StreamPlatformHub({
 
   return (
     <>
-      {/* Edit/Delete Dialog */}
-      <EditDeleteDialog
-        isOpen={isDialogOpen}
-        onClose={onCloseDialog || (() => {})}
+      {/* Edit Stream Key Dialog */}
+      <EditStreamKeyDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        platformIcon={platformLogoIcon}
         platformName={platformName}
         currentStreamKey={currentStreamKey}
         onSave={onSaveEdit || (() => {})}
+        onFetchStreamKey={onFetchStreamKey}
+        isStreaming={isStreaming}
+      />
+
+      {/* Delete Stream Dialog */}
+      <DeleteStreamDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        platformName={platformName}
         onDelete={onDelete || (() => {})}
         isDeleting={isDeleting}
       />
@@ -193,7 +202,7 @@ function StreamPlatformHub({
         </button>
 
         {/* Platform Info */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-[10px] mb-[10px]">
           <div className="flex items-center gap-[8px]">
             {platformLogoIcon && (
               <img
@@ -208,17 +217,17 @@ function StreamPlatformHub({
           </div>
 
           <div className="flex items-center gap-[9px]">
-            {/* Edit Button - Opens Dialog */}
+            {/* Edit Button - Opens Edit Dialog */}
             <button
-              onClick={onOpenDialog}
+              onClick={() => setIsEditDialogOpen(true)}
               className="text-[14px] w-[60px] h-[30px] border border-[var(--border)] rounded-[12px] text-[var(--secondary-background)] hover:bg-gray-50 transition-colors font-semibold"
             >
               Edit
             </button>
 
-            {/* Delete Button - Opens Dialog */}
+            {/* Delete Button - Opens Delete Dialog */}
             <button
-              onClick={onOpenDialog}
+              onClick={() => setIsDeleteDialogOpen(true)}
               className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition-colors"
             >
               <img src={trashIcon} alt="Delete" className="w-[20px] h-[20px]" />

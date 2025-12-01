@@ -116,11 +116,12 @@
   --background: #FFFFFF;
   --secondary-background: #0A0A0A;
   --secondary-foreground: #0A0A0A;
-
+  --foreground: #0A0A0A;
   --primary-forground: #F5F5F5;
   --muted-forground: #737373;
   --destructive: #DC2626;
   --border: #E5E5E5;
+  --char_T: #00B869;
 
 }
 
