@@ -45,7 +45,6 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const [connections, setConnections] = useState<StreamConnection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
   const [activeStreamingConnectionId, setActiveStreamingConnectionId] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Stream configuration state
@@ -449,15 +448,15 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setCurrentStreamStatus('offline');
     setLogs([]);
     setIsDeleting(false);
-    setIsDialogOpen(false);
 
     addLog('info', `Deleted stream key for ${selectedConnection.platformName}`);
   };
 
-  const handleEditConnection = async (newKey: string) => {
+  const handleEditConnection = async (newKey: string, newRtmpUrl?: string) => {
     if (!selectedConnection || !newKey.trim() || !userId) return;
 
     const trimmedKey = newKey.trim();
+    const trimmedUrl = (newRtmpUrl || '').trim();
     const maskedKey = maskStreamKey(trimmedKey);
 
     // Update via API
@@ -471,7 +470,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
         body: JSON.stringify({
           platform: selectedConnection.platform,
           streamKey: trimmedKey,
-          rtmpUrl: selectedConnection.rtmpUrl || '',
+          rtmpUrl: trimmedUrl,
           platformName: selectedConnection.platformName,
           platformLogoIcon: selectedConnection.platformLogoIcon,
           maskedStreamKey: maskedKey,
@@ -482,13 +481,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
       if (response.ok) {
         const data = await response.json();
         if (data.ok) {
-          // Update the connection with new key
+          // Update the connection with new key and URL
           setConnections(prev => prev.map(conn => {
             if (conn.id === selectedConnection.id) {
               return {
                 ...conn,
                 fullStreamKey: trimmedKey,
-                maskedStreamKey: maskedKey
+                maskedStreamKey: maskedKey,
+                rtmpUrl: trimmedUrl || undefined
               };
             }
             return conn;
@@ -498,7 +498,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
           const updatedConnection = {
             ...selectedConnection,
             fullStreamKey: trimmedKey,
-            maskedStreamKey: maskedKey
+            maskedStreamKey: maskedKey,
+            rtmpUrl: trimmedUrl || undefined
           };
           setSelectedConnection(updatedConnection);
 
@@ -506,11 +507,12 @@ function Container({ userId: userIdProp }: ContainerProps) {
           if (connectedPlatform) {
             setConnectedPlatform({
               ...connectedPlatform,
-              streamKey: trimmedKey
+              streamKey: trimmedKey,
+              streamUrl: trimmedUrl
             });
           }
 
-          addLog('success', `Updated stream key for ${selectedConnection.platformName}`);
+          addLog('success', `Updated stream configuration for ${selectedConnection.platformName}`);
         }
       } else {
         addLog('error', 'Failed to update configuration in database');
@@ -518,16 +520,6 @@ function Container({ userId: userIdProp }: ContainerProps) {
     } catch (error) {
       console.error('Failed to update connection in API:', error);
       addLog('error', 'Failed to update configuration');
-    }
-  };
-
-  const handleOpenDialog = () => {
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    if (!isDeleting) {
-      setIsDialogOpen(false);
     }
   };
 
@@ -577,13 +569,11 @@ function Container({ userId: userIdProp }: ContainerProps) {
                 setCurrentStreamStatus('offline');
                 setLogs([]);
               }}
-              onOpenDialog={handleOpenDialog}
-              isDialogOpen={isDialogOpen}
-              onCloseDialog={handleCloseDialog}
               onDelete={handleDeleteConnection}
               onSaveEdit={handleEditConnection}
               isDeleting={isDeleting}
               currentStreamKey={selectedConnection.fullStreamKey}
+              currentRtmpUrl={selectedConnection.rtmpUrl || ''}
               logs={logs}
               maskedStreamKey={selectedConnection.maskedStreamKey}
               previewUrl={status.previewUrl ?? null}

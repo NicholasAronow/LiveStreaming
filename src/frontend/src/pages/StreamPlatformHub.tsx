@@ -14,10 +14,11 @@ interface StreamPlatformHubProps {
   onStopStream?: () => void;
   onGoBack?: () => void;
   onDelete?: () => void;
-  onSaveEdit?: (newKey: string) => void;
+  onSaveEdit?: (newKey: string, newRtmpUrl?: string) => void;
   onFetchStreamKey?: () => Promise<string>;
   isDeleting?: boolean;
   currentStreamKey?: string;
+  currentRtmpUrl?: string;
   logs?: LogEntry[];
   maskedStreamKey?: string;
   previewUrl?: string | null;
@@ -37,6 +38,7 @@ function StreamPlatformHub({
   onFetchStreamKey,
   isDeleting = false,
   currentStreamKey = '',
+  currentRtmpUrl = '',
   logs = [],
   maskedStreamKey,
   previewUrl = null,
@@ -128,6 +130,7 @@ function StreamPlatformHub({
         platformIcon={platformLogoIcon}
         platformName={platformName}
         currentStreamKey={currentStreamKey}
+        currentRtmpUrl={currentRtmpUrl}
         onSave={onSaveEdit || (() => {})}
         onFetchStreamKey={onFetchStreamKey}
         isStreaming={isStreaming}
