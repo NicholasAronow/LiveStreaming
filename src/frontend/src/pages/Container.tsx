@@ -16,8 +16,13 @@ import twitchIcon from '../../../public/assets/Property 1=Twitch fill.svg';
 
 const MAX_LOGS = 100;
 
-function Container() {
-  const { userId, isLoading, error, isAuthenticated } = useMentraAuth();
+interface ContainerProps {
+  userId?: string;
+}
+
+function Container({ userId: userIdProp }: ContainerProps) {
+  const { userId: authUserId } = useMentraAuth();
+  const userId = userIdProp || authUserId;
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('new');
   const [showAddedKeyPage, setShowAddedKeyPage] = useState(false);
@@ -265,7 +270,15 @@ function Container() {
   };
 
   const handleStartStream = async () => {
-    if (!connectedPlatform || isStreamingStatus(currentStreamStatus)) return;
+    console.log('handleStartStream called');
+    console.log('connectedPlatform:', connectedPlatform);
+    console.log('currentStreamStatus:', currentStreamStatus);
+    console.log('userId:', userId);
+
+    if (!connectedPlatform || isStreamingStatus(currentStreamStatus)) {
+      console.log('Returning early - connectedPlatform or streaming status check failed');
+      return;
+    }
 
     const platform = connectedPlatform.id as Platform;
     const key = connectedPlatform.streamKey || '';
@@ -279,13 +292,17 @@ function Container() {
       useCloudflareManaged: true,
     };
 
+    console.log('Stream config:', config);
+
     setCurrentStreamStatus('Connecting');
     setIsStreaming(true);
     addLog('info', '--- New stream session ---');
     addLog('info', 'Starting managed stream...');
     addLog('info', 'Requesting Cloudflare managed stream...');
 
+    console.log('Calling postJson to /api/stream/managed/start');
     const result = await postJson('/api/stream/managed/start', config, userId || undefined);
+    console.log('postJson result:', result);
 
     if (result.ok === false) {
       setCurrentStreamStatus('Error');

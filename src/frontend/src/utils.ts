@@ -1,4 +1,5 @@
 import { StreamConfig } from './types';
+import { BACKEND_URL } from './config/api';
 
 export const PLATFORM_URLS: Record<string, string> = {
   youtube: 'rtmps://a.rtmps.youtube.com/live2',
@@ -35,7 +36,11 @@ export function isStreamingStatus(status?: string): boolean {
 
 export async function postJson(url: string, body?: unknown, userId?: string) {
   try {
-    // Use relative URL (will be proxied by Vite in dev)
+    // Convert relative URLs to absolute URLs using BACKEND_URL
+    // This ensures API calls work through ngrok as well as localhost
+    const fullUrl = url.startsWith('http') ? url : `${BACKEND_URL}${url}`;
+    console.log('postJson:', fullUrl, 'userId:', userId);
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
@@ -45,13 +50,15 @@ export async function postJson(url: string, body?: unknown, userId?: string) {
       headers['X-User-Id'] = userId;
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers,
       credentials: 'include', // Include cookies for authentication
       body: JSON.stringify(body || {}),
     });
-    return await response.json().catch(() => ({ ok: response.ok }));
+    const data = await response.json().catch(() => ({ ok: response.ok }));
+    console.log('postJson response:', response.status, data);
+    return data;
   } catch (error: any) {
     console.error('API error:', error);
     return { ok: false, error: error.message };
