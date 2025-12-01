@@ -26,7 +26,7 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
       case "instagram":
         return "rtmps://live-upload.instagram.com:443/rtmp";
       case "x":
-        return "rtmp://live.x.com/rtmp";
+        return "rtmp://ca.pscp.tv:80/x";
       default:
         return "";
     }

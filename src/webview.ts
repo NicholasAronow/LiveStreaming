@@ -230,7 +230,8 @@ export function setupExpressRoutes(
           const platformUrls: Record<string, string> = {
             youtube: 'rtmps://a.rtmps.youtube.com/live2',
             twitch: 'rtmps://live.twitch.tv/app',
-            instagram: 'rtmps://live-upload.instagram.com:443/rtmp'
+            instagram: 'rtmps://live-upload.instagram.com:443/rtmp',
+            x: 'rtmp://ca.pscp.tv:80/x'
           };
           const baseUrl = platformUrls[session.streamPlatform];
           if (baseUrl && session.streamKey) {
@@ -334,25 +335,71 @@ export function setupExpressRoutes(
   // Docs reference: https://mentra-new-docs.mintlify.app/camera/rtmp-streaming.md
   app.post('/api/stream/unmanaged/start', async (req: any, res: any) => {
     try {
-      if (!req.authUserId || !req.activeSession) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-      }
-      const rtmpUrl: string | undefined = req.body?.rtmpUrl;
-      if (!rtmpUrl) {
-        res.status(400).json({ ok: false, error: 'Missing rtmpUrl' });
-        return;
-      }
-      // Save configuration
-      if (req.body?.platform) req.activeSession.streamPlatform = req.body.platform;
-      if (req.body?.streamKey !== undefined) req.activeSession.streamKey = req.body.streamKey;
-      if (req.body?.customRtmpUrl !== undefined) req.activeSession.customRtmpUrl = req.body.customRtmpUrl;
-      if (req.body?.useCloudflareManaged !== undefined) req.activeSession.useCloudflareManaged = req.body.useCloudflareManaged;
+      console.log('[/api/stream/unmanaged/start] Request received');
 
-      await req.activeSession.camera.startStream({ rtmpUrl });
-      broadcastStreamStatus(req.authUserId, formatStreamStatus(req.activeSession));
+      const userId = getUserIdFromRequest(req);
+      console.log('[/api/stream/unmanaged/start] userId:', userId);
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized - no userId' });
+        return;
+      }
+
+      // Get the active session
+      let activeSession: AppSession | undefined = req.activeSession;
+      if (!activeSession && getUserSession) {
+        activeSession = getUserSession(userId);
+        console.log('[/api/stream/unmanaged/start] Looked up session by userId:', activeSession ? 'found' : 'not found');
+      }
+
+      if (!activeSession) {
+        res.status(401).json({ error: 'Unauthorized - no active session' });
+        return;
+      }
+
+      // Save configuration
+      const session = activeSession as any;
+      if (req.body?.platform) session.streamPlatform = req.body.platform;
+      if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
+      if (req.body?.customRtmpUrl !== undefined) session.customRtmpUrl = req.body.customRtmpUrl;
+      if (req.body?.useCloudflareManaged !== undefined) session.useCloudflareManaged = req.body.useCloudflareManaged;
+
+      // Build RTMP URL from platform and stream key
+      let rtmpUrl: string | undefined = req.body?.rtmpUrl;
+
+      if (!rtmpUrl) {
+        // Build URL from platform configuration
+        const platform = session.streamPlatform;
+        const streamKey = session.streamKey;
+
+        if (platform === 'other') {
+          rtmpUrl = session.customRtmpUrl;
+        } else if (platform) {
+          const platformUrls: Record<string, string> = {
+            youtube: 'rtmps://a.rtmps.youtube.com/live2',
+            twitch: 'rtmps://live.twitch.tv/app',
+            instagram: 'rtmps://live-upload.instagram.com:443/rtmp',
+            x: 'rtmp://ca.pscp.tv:80/x'
+          };
+          const baseUrl = platformUrls[platform];
+          if (baseUrl && streamKey) {
+            rtmpUrl = `${baseUrl}/${streamKey}`;
+          }
+        }
+      }
+
+      if (!rtmpUrl) {
+        res.status(400).json({ ok: false, error: 'Missing rtmpUrl - could not build URL from platform config' });
+        return;
+      }
+
+      console.log('[/api/stream/unmanaged/start] Starting stream to:', rtmpUrl.replace(/\/[^/]*$/, '/****'));
+
+      await activeSession.camera.startStream({ rtmpUrl });
+      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
       res.json({ ok: true });
     } catch (err: any) {
+      console.error('[/api/stream/unmanaged/start] Error:', err);
       res.status(400).json({ ok: false, error: String(err?.message ?? err) });
     }
   });
@@ -360,38 +407,65 @@ export function setupExpressRoutes(
   // API: Stop unmanaged RTMP stream
   app.post('/api/stream/unmanaged/stop', async (req: any, res: any) => {
     try {
-      if (!req.authUserId || !req.activeSession) {
-        res.status(401).json({ error: 'Unauthorized' });
+      console.log('[/api/stream/unmanaged/stop] Request received');
+
+      const userId = getUserIdFromRequest(req);
+      console.log('[/api/stream/unmanaged/stop] userId:', userId);
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized - no userId' });
         return;
       }
-      
+
+      // Get the active session
+      let activeSession: AppSession | undefined = req.activeSession;
+      if (!activeSession && getUserSession) {
+        activeSession = getUserSession(userId);
+        console.log('[/api/stream/unmanaged/stop] Looked up session by userId:', activeSession ? 'found' : 'not found');
+      }
+
+      if (!activeSession) {
+        res.status(401).json({ error: 'Unauthorized - no active session' });
+        return;
+      }
+
+      console.log('[/api/stream/unmanaged/stop] Stopping unmanaged stream for user:', userId);
+
+      const session = activeSession as any;
+
       // First check if there's an existing stream to stop
-      const streamInfo = await req.activeSession.camera.checkExistingStream();
-      
+      const streamInfo = await activeSession.camera.checkExistingStream();
+
       if (streamInfo.hasActiveStream && streamInfo.streamInfo?.type === 'unmanaged') {
         // There is an unmanaged stream, try to stop it
-        await req.activeSession.camera.stopStream();
-        req.activeSession.streamType = null;
-        req.activeSession.streamStatus = 'idle';
-        req.activeSession.directRtmpUrl = null;
-        req.activeSession.streamId = null;
-        broadcastStreamStatus(req.authUserId, formatStreamStatus(req.activeSession));
+        await activeSession.camera.stopStream();
+        session.streamType = null;
+        session.streamStatus = 'idle';
+        session.directRtmpUrl = null;
+        session.streamId = null;
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true });
       } else {
         // No unmanaged stream found
-        console.log('No unmanaged stream found to stop');
-        req.activeSession.streamType = null;
-        req.activeSession.streamStatus = 'idle';
-        broadcastStreamStatus(req.authUserId, formatStreamStatus(req.activeSession));
+        console.log('[/api/stream/unmanaged/stop] No unmanaged stream found to stop');
+        session.streamType = null;
+        session.streamStatus = 'idle';
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true, message: 'No stream to stop' });
       }
     } catch (err: any) {
-      console.error('Error stopping unmanaged stream:', err);
+      console.error('[/api/stream/unmanaged/stop] Error:', err);
       // Even if stop fails, update UI to reflect no stream
-      if (req.activeSession) {
-        req.activeSession.streamType = null;
-        req.activeSession.streamStatus = 'idle';
-        broadcastStreamStatus(req.authUserId, formatStreamStatus(req.activeSession));
+      const userId = getUserIdFromRequest(req);
+      let activeSession: AppSession | undefined = req.activeSession;
+      if (!activeSession && getUserSession && userId) {
+        activeSession = getUserSession(userId);
+      }
+      if (activeSession && userId) {
+        const session = activeSession as any;
+        session.streamType = null;
+        session.streamStatus = 'idle';
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
       }
       res.status(400).json({ ok: false, error: String(err?.message ?? err) });
     }

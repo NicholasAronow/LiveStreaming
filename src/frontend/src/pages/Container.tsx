@@ -204,7 +204,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
       platform,
       streamKey: key,
       customRtmpUrl: cleanUrl,
-      useCloudflareManaged: true, // Use Cloudflare managed streaming
+      useCloudflareManaged: true, // Use Cloudflare managed streaming with restreaming
     };
     const rtmpUrl = getRtmpUrl(config);
 
@@ -284,7 +284,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     const key = connectedPlatform.streamKey || '';
     const url = (connectedPlatform.streamUrl || '').trim();
 
-    // Build config for managed streaming
+    // Build config for managed streaming with restreaming
     const config: StreamConfig = {
       platform,
       streamKey: key,
@@ -298,6 +298,10 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setIsStreaming(true);
     addLog('info', '--- New stream session ---');
     addLog('info', 'Starting managed stream...');
+    if (platform !== 'here') {
+      const rtmpUrl = getRtmpUrl(config);
+      addLog('info', 'Restreaming to: ' + (rtmpUrl ? rtmpUrl.replace(/\/[^/]*$/, '/****') : 'unknown'));
+    }
     addLog('info', 'Requesting Cloudflare managed stream...');
 
     console.log('Calling postJson to /api/stream/managed/start');

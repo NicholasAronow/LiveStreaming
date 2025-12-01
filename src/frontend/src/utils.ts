@@ -5,6 +5,7 @@ export const PLATFORM_URLS: Record<string, string> = {
   youtube: 'rtmps://a.rtmps.youtube.com/live2',
   twitch: 'rtmps://live.twitch.tv/app',
   instagram: 'rtmps://live-upload.instagram.com:443/rtmp',
+  x: 'rtmp://ca.pscp.tv:80/x',
 };
 
 export function getRtmpUrl(config: StreamConfig): string | null {

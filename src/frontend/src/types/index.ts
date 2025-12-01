@@ -1,6 +1,6 @@
 export type StreamType = 'managed' | 'unmanaged' | null;
 
-export type Platform = 'here' | 'youtube' | 'twitch' | 'instagram' | 'other';
+export type Platform = 'here' | 'youtube' | 'twitch' | 'instagram' | 'x' | 'other';
 
 export interface StreamStatus {
   streamType: StreamType;
