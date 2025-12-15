@@ -38,14 +38,14 @@ function PickStreamingPlatform({ onPlatformSelect }: PickStreamingPlatformProps)
       logoIcon: twitchIconFill,
       borderColor: "#9146FF"
     },
-    {
-      id: "tiktok",
-      platformName: "TikTok",
-      imgAdress: tiktokIcon,
-      imgAdressFill: tiktokIconFill,
-      logoIcon: tiktokIconFill,
-      borderColor: "#000000"
-    },
+    // {
+    //   id: "tiktok",
+    //   platformName: "TikTok",
+    //   imgAdress: tiktokIcon,
+    //   imgAdressFill: tiktokIconFill,
+    //   logoIcon: tiktokIconFill,
+    //   borderColor: "#000000"
+    // },
     {
       id: "x",
       platformName: "X",

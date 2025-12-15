@@ -1,4 +1,5 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
 import youtubePlayLogo from "../../../public/assets/youtube/YoutubePlaylogo.svg";
 
 interface StreamSetupProps {
@@ -79,6 +80,39 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
     }
   };
 
+  const getPlatformStreamKeyUrl = (platform: string) => {
+    switch (platform) {
+      case "youtube":
+        return "https://studio.youtube.com/channel/UC/livestreaming";
+      case "twitch":
+        return "https://dashboard.twitch.tv/settings/stream";
+      case "instagram":
+        return "https://www.instagram.com/accounts/edit/";
+      case "x":
+        return "https://studio.twitter.com/";
+      default:
+        return "";
+    }
+  };
+
+  const handleCopyPlatformUrl = () => {
+    const url = getPlatformStreamKeyUrl(platform);
+    if (url) {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!", {
+        duration: 2000,
+        style: {
+          background: "#FFFFFF",
+          color: "#0F0F0F",
+          border: "1px solid #E5E7EB",
+          borderRadius: "12px",
+          fontSize: "14px",
+          padding: "12px 16px",
+        },
+      });
+    }
+  };
+
   const handleConnect = () => {
     console.log("Connecting to", platform, "with URL:", streamUrl, "and key:", streamKey);
     // Call the onConnect callback with stream key and URL
@@ -121,8 +155,11 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
               Dashboard → Settings → Stream → Primary Stream Key
             </p>
           </div>
-          <button className="text-purple-600 hover:text-purple-700">
-            <svg 
+          <button
+            onClick={handleCopyPlatformUrl}
+            className="text-purple-600 hover:text-purple-700"
+          >
+            <svg
               width="16"
               height="16"
               viewBox="0 0 24 24"

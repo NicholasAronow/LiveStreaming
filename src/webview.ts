@@ -252,11 +252,53 @@ export function setupExpressRoutes(
         }
       }
 
-      await activeSession.camera.startManagedStream(options);
-      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-      res.json({ ok: true });
+      try {
+        // Wrap with timeout and disconnect handler to prevent hanging requests
+        const streamPromise = activeSession.camera.startManagedStream(options);
+
+        // Create a promise that rejects on disconnect
+        let disconnectHandler: (() => void) | null = null;
+        const disconnectPromise = new Promise<never>((_, reject) => {
+          disconnectHandler = () => {
+            reject(new Error('Cannot process request - smart glasses must be connected to WiFi for this operation'));
+          };
+          activeSession.events.onDisconnected(disconnectHandler);
+        });
+
+        // Timeout after 10 seconds
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Stream start timeout - request took too long')), 10000)
+        );
+
+        await Promise.race([streamPromise, disconnectPromise, timeoutPromise]);
+
+        // Clean up disconnect handler if we succeeded
+        if (disconnectHandler) {
+          // Note: The SDK doesn't provide a way to remove event listeners, so we just let it stay
+        }
+
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+        res.json({ ok: true });
+      } catch (streamError: any) {
+        const streamErrorMessage = String(streamError?.message ?? streamError);
+        console.error(`[/api/stream/managed/start] Stream start error for ${userId}:`, streamErrorMessage);
+
+        // Check if this is a WiFi connection error
+        if (streamErrorMessage.includes('must be connected to WiFi')) {
+          console.error(`❌ [${userId}] WiFi Error: Glasses are not connected to WiFi network`);
+          res.status(400).json({
+            ok: false,
+            error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
+          });
+        } else {
+          res.status(400).json({ ok: false, error: streamErrorMessage });
+        }
+      }
     } catch (err: any) {
-      res.status(400).json({ ok: false, error: String(err?.message ?? err) });
+      const errorMessage = String(err?.message ?? err);
+      const userId = getUserIdFromRequest(req);
+      console.error(`[/api/stream/managed/start] Unexpected error for ${userId}:`, errorMessage);
+      res.status(500).json({ ok: false, error: errorMessage });
     }
   });
 

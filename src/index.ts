@@ -1,12 +1,20 @@
-import { ToolCall, AppServer, AppSession, StreamType } from '@mentra/sdk';
-import path from 'path';
-import { setupExpressRoutes } from './webview';
-import { handleToolCall } from './tools';
-import { broadcastStreamStatus, formatStreamStatus } from './webview';
-import { connectDB } from './db';
+import { ToolCall, AppServer, AppSession, StreamType } from "@mentra/sdk";
+import path from "path";
+import { setupExpressRoutes } from "./webview";
+import { handleToolCall } from "./tools";
+import { broadcastStreamStatus, formatStreamStatus } from "./webview";
+import { connectDB } from "./db";
 
-const PACKAGE_NAME = process.env.PACKAGE_NAME ?? (() => { throw new Error('PACKAGE_NAME is not set in .env file'); })();
-const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY ?? (() => { throw new Error('MENTRAOS_API_KEY is not set in .env file'); })();
+const PACKAGE_NAME =
+  process.env.PACKAGE_NAME ??
+  (() => {
+    throw new Error("PACKAGE_NAME is not set in .env file");
+  })();
+const MENTRAOS_API_KEY =
+  process.env.MENTRAOS_API_KEY ??
+  (() => {
+    throw new Error("MENTRAOS_API_KEY is not set in .env file");
+  })();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 80;
 
 class StreamerApp extends AppServer {
@@ -18,11 +26,13 @@ class StreamerApp extends AppServer {
       packageName: PACKAGE_NAME,
       apiKey: MENTRAOS_API_KEY,
       port: PORT,
-      publicDir: path.join(__dirname, '../public'),
+      publicDir: path.join(__dirname, "../public"),
     });
 
     // Set up Express routes with access to userSessionsMap
-    setupExpressRoutes(this, (userId: string) => this.userSessionsMap.get(userId));
+    setupExpressRoutes(this, (userId: string) =>
+      this.userSessionsMap.get(userId)
+    );
   }
 
   /**
@@ -31,7 +41,11 @@ class StreamerApp extends AppServer {
    * @returns Promise resolving to the tool call response or undefined
    */
   protected async onToolCall(toolCall: ToolCall): Promise<string | undefined> {
-    return handleToolCall(toolCall, toolCall.userId, this.userSessionsMap.get(toolCall.userId));
+    return handleToolCall(
+      toolCall,
+      toolCall.userId,
+      this.userSessionsMap.get(toolCall.userId)
+    );
   }
 
   /**
@@ -41,9 +55,17 @@ class StreamerApp extends AppServer {
    * @param sessionId - Unique session identifier
    * @param userId - User identifier
    */
-  protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
+  protected async onSession(
+    session: AppSession,
+    sessionId: string,
+    userId: string
+  ): Promise<void> {
     // Track the session for this user
     this.userSessionsMap.set(userId, session);
+
+    // Check if the user is connected to WiFi via glasses
+    const hasWifi = session.capabilities?.hasWifi;
+    console.log(`📶 [${userId}] WiFi capability: ${hasWifi ? 'Connected/Available' : 'Not Available'}`);
 
     session.subscribe(StreamType.MANAGED_STREAM_STATUS);
     session.subscribe(StreamType.RTMP_STREAM_STATUS);
@@ -53,15 +75,15 @@ class StreamerApp extends AppServer {
       const streamInfo = await session.camera.checkExistingStream();
 
       if (streamInfo.hasActiveStream && streamInfo.streamInfo) {
-        console.log('Found existing stream:', streamInfo.streamInfo.type);
+        console.log("Found existing stream:", streamInfo.streamInfo.type);
 
-        if (streamInfo.streamInfo.type === 'managed') {
+        if (streamInfo.streamInfo.type === "managed") {
           // Managed stream is active - reconnect to it
-          console.log('Reconnecting to existing managed stream...');
-          
+          console.log("Reconnecting to existing managed stream...");
+
           // The stream is already active, just update our local state
-          session.streamType = 'managed';
-          session.streamStatus = streamInfo.streamInfo.status || 'active';
+          session.streamType = "managed";
+          session.streamStatus = streamInfo.streamInfo.status || "active";
           session.hlsUrl = streamInfo.streamInfo.hlsUrl || null;
           session.dashUrl = streamInfo.streamInfo.dashUrl || null;
           session.streamId = streamInfo.streamInfo.streamId || null;
@@ -73,11 +95,15 @@ class StreamerApp extends AppServer {
           broadcastStreamStatus(userId, formatStreamStatus(session));
 
           // Show notification in glasses
-          session.layouts.showTextWall(`📺 Stream already active!\n\nHLS: ${streamInfo.streamInfo.hlsUrl || 'Generating...'}`);
+          session.layouts.showTextWall(
+            `📺 Stream already active!\n\nHLS: ${
+              streamInfo.streamInfo.hlsUrl || "Generating..."
+            }`
+          );
         } else {
           // Unmanaged stream is active
-          session.streamType = 'unmanaged';
-          session.streamStatus = streamInfo.streamInfo.status || 'active';
+          session.streamType = "unmanaged";
+          session.streamStatus = streamInfo.streamInfo.status || "active";
           session.hlsUrl = null;
           session.dashUrl = null;
           session.streamId = streamInfo.streamInfo.streamId || null;
@@ -88,91 +114,107 @@ class StreamerApp extends AppServer {
           broadcastStreamStatus(userId, formatStreamStatus(session));
 
           // Show notification in glasses
-          session.layouts.showTextWall(`⚠️ Another app is streaming to:\n${streamInfo.streamInfo.rtmpUrl || 'Unknown URL'}`);
+          session.layouts.showTextWall(
+            `⚠️ Another app is streaming to:\n${
+              streamInfo.streamInfo.rtmpUrl || "Unknown URL"
+            }`
+          );
         }
       }
     } catch (error) {
-      console.error('Error checking existing stream:', error);
+      console.error("Error checking existing stream:", error);
       // Continue with normal setup even if check fails
     }
 
-    const statusUnsubscribe = session.camera.onManagedStreamStatus(async (data) => {
-      console.log(data);
-      const sess = session as any;
+    const statusUnsubscribe = session.camera.onManagedStreamStatus(
+      async (data) => {
+        console.log(data);
+        const sess = session as any;
 
-      // Auto-cleanup and auto-restart failed streams
-      if (data.status?.toLowerCase() === 'error' || data.status?.toLowerCase() === 'failed') {
-        console.log('Stream entered error state, auto-stopping managed stream...');
+        // Auto-cleanup and auto-restart failed streams
+        if (
+          data.status?.toLowerCase() === "error" ||
+          data.status?.toLowerCase() === "failed"
+        ) {
+          console.log(
+            "Stream entered error state, auto-stopping managed stream..."
+          );
 
-        // First broadcast the error status
-        sess.streamType = 'managed';
-        sess.streamStatus = data.status;
-        sess.error = data.message ?? 'Stream error';
-        broadcastStreamStatus(userId, formatStreamStatus(session));
+          // First broadcast the error status
+          sess.streamType = "managed";
+          sess.streamStatus = data.status;
+          sess.error = data.message ?? "Stream error";
+          broadcastStreamStatus(userId, formatStreamStatus(session));
 
-        // Then cleanup
-        try {
-          await session.camera.stopManagedStream();
-          console.log('Auto-stop completed successfully');
-        } catch (stopErr) {
-          console.error('Failed to auto-stop errored stream:', stopErr);
-        }
-
-        // Reset session state after stop completes
-        sess.streamStatus = 'offline';
-        sess.streamType = null;
-        sess.streamId = null;
-        sess.previewUrl = null;
-        sess.hlsUrl = null;
-        sess.dashUrl = null;
-        sess.error = null;
-
-        // Broadcast offline status
-        broadcastStreamStatus(userId, formatStreamStatus(session));
-
-        // Auto-restart: wait 2 seconds then try to restart the stream
-        console.log('Waiting 2 seconds before auto-restart...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Check if we still have restream config saved
-        if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
-          console.log('Auto-restarting stream with saved configuration...');
+          // Then cleanup
           try {
-            const options = {
-              restreamDestinations: sess.restreamDestinations
-            };
-            await session.camera.startManagedStream(options);
-            console.log('Auto-restart initiated successfully');
-          } catch (restartErr) {
-            console.error('Failed to auto-restart stream:', restartErr);
-            sess.error = 'Auto-restart failed: ' + String(restartErr);
-            broadcastStreamStatus(userId, formatStreamStatus(session));
+            await session.camera.stopManagedStream();
+            console.log("Auto-stop completed successfully");
+          } catch (stopErr) {
+            console.error("Failed to auto-stop errored stream:", stopErr);
           }
-        } else {
-          console.log('No restream configuration saved, skipping auto-restart');
+
+          // Reset session state after stop completes
+          sess.streamStatus = "offline";
+          sess.streamType = null;
+          sess.streamId = null;
+          sess.previewUrl = null;
+          sess.hlsUrl = null;
+          sess.dashUrl = null;
+          sess.error = null;
+
+          // Broadcast offline status
+          broadcastStreamStatus(userId, formatStreamStatus(session));
+
+          // Auto-restart: wait 2 seconds then try to restart the stream
+          console.log("Waiting 2 seconds before auto-restart...");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Check if we still have restream config saved
+          if (
+            sess.restreamDestinations &&
+            sess.restreamDestinations.length > 0
+          ) {
+            console.log("Auto-restarting stream with saved configuration...");
+            try {
+              const options = {
+                restreamDestinations: sess.restreamDestinations,
+              };
+              await session.camera.startManagedStream(options);
+              console.log("Auto-restart initiated successfully");
+            } catch (restartErr) {
+              console.error("Failed to auto-restart stream:", restartErr);
+              sess.error = "Auto-restart failed: " + String(restartErr);
+              broadcastStreamStatus(userId, formatStreamStatus(session));
+            }
+          } else {
+            console.log(
+              "No restream configuration saved, skipping auto-restart"
+            );
+          }
+
+          return;
         }
 
-        return;
+        // Normal status update
+        sess.streamType = "managed";
+        sess.streamStatus = data.status;
+        sess.hlsUrl = data.hlsUrl ?? null;
+        sess.dashUrl = data.dashUrl ?? null;
+        sess.directRtmpUrl = null;
+        sess.streamId = data.streamId ?? null;
+        sess.error = null;
+        sess.previewUrl = data.previewUrl ?? null;
+        sess.thumbnailUrl = data.thumbnailUrl ?? null;
+
+        // Broadcast updated status to the user's SSE clients
+        broadcastStreamStatus(userId, formatStreamStatus(session));
       }
-
-      // Normal status update
-      sess.streamType = 'managed';
-      sess.streamStatus = data.status;
-      sess.hlsUrl = data.hlsUrl ?? null;
-      sess.dashUrl = data.dashUrl ?? null;
-      sess.directRtmpUrl = null;
-      sess.streamId = data.streamId ?? null;
-      sess.error = null;
-      sess.previewUrl = data.previewUrl ?? null;
-      sess.thumbnailUrl = data.thumbnailUrl ?? null;
-
-      // Broadcast updated status to the user's SSE clients
-      broadcastStreamStatus(userId, formatStreamStatus(session));
-    });
+    );
 
     const rtmpStatusUnsubscribe = session.camera.onStreamStatus((data) => {
       console.log(data);
-      session.streamType = 'unmanaged';
+      session.streamType = "unmanaged";
       session.streamStatus = data.status;
       session.hlsUrl = null;
       session.dashUrl = null;
@@ -184,29 +226,37 @@ class StreamerApp extends AppServer {
     });
 
     // Glasses battery level updates (if available)
-    const batteryUnsubscribe = session.events?.onGlassesBattery?.((data: any) => {
-      try {
-        const pct = typeof data?.percent === 'number' ? data.percent : (typeof data === 'number' ? data : null);
-        session.glassesBatteryPercent = pct ?? null;
-      } catch {
-        session.glassesBatteryPercent = null;
-      }
-      broadcastStreamStatus(userId, formatStreamStatus(session));
-    }) ?? (() => {});
+    const batteryUnsubscribe =
+      session.events?.onGlassesBattery?.((data: any) => {
+        try {
+          const pct =
+            typeof data?.percent === "number"
+              ? data.percent
+              : typeof data === "number"
+              ? data
+              : null;
+          session.glassesBatteryPercent = pct ?? null;
+        } catch {
+          session.glassesBatteryPercent = null;
+        }
+        broadcastStreamStatus(userId, formatStreamStatus(session));
+      }) ?? (() => {});
 
     // Broadcast on disconnect and cleanup the mapping
-    const disconnectedUnsubscribe = session.events.onDisconnected((info: any) => {
-      try {
-        // Only broadcast a disconnected state if the SDK marks it as permanent
-        if (info && typeof info === 'object' && info.permanent === true) {
-          this.userSessionsMap.delete(userId);
-          broadcastStreamStatus(userId, formatStreamStatus(undefined));
+    const disconnectedUnsubscribe = session.events.onDisconnected(
+      (info: any) => {
+        try {
+          // Only broadcast a disconnected state if the SDK marks it as permanent
+          if (info && typeof info === "object" && info.permanent === true) {
+            this.userSessionsMap.delete(userId);
+            broadcastStreamStatus(userId, formatStreamStatus(undefined));
+          }
+          // Otherwise, allow auto-reconnect without UI flicker
+        } catch {
+          // No-op
         }
-        // Otherwise, allow auto-reconnect without UI flicker
-      } catch {
-        // No-op
       }
-    });
+    );
 
     this.addCleanupHandler(() => {
       statusUnsubscribe();
@@ -225,27 +275,31 @@ class StreamerApp extends AppServer {
    * Handles stop requests to ensure SSE clients are notified of disconnection
    * and streams are properly terminated
    */
-  protected async onStop(sessionId: string, userId: string, reason: string): Promise<void> {
+  protected async onStop(
+    sessionId: string,
+    userId: string,
+    reason: string
+  ): Promise<void> {
     try {
       // Get the session before cleanup to send explicit stream termination commands
       const session = this.userSessionsMap.get(userId);
-      
+
       // Send explicit stream termination commands
       if (session?.streamType) {
         try {
-          if (session.streamType === 'managed') {
+          if (session.streamType === "managed") {
             await session.camera.stopManagedStream();
-            console.log('Managed stream terminated on app stop');
-          } else if (session.streamType === 'unmanaged') {
+            console.log("Managed stream terminated on app stop");
+          } else if (session.streamType === "unmanaged") {
             await session.camera.stopStream();
-            console.log('Unmanaged stream terminated on app stop');
+            console.log("Unmanaged stream terminated on app stop");
           }
         } catch (streamError) {
-          console.error('Error terminating stream on stop:', streamError);
+          console.error("Error terminating stream on stop:", streamError);
           // Continue with cleanup even if stream stop fails
         }
       }
-      
+
       // Ensure base cleanup (disconnects and clears SDK's active session maps)
       await super.onStop(sessionId, userId, reason);
       // Remove any cached session for this user

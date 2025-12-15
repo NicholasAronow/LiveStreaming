@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMentraAuth } from '@mentra/react';
+import { useMentraAuth } from "@mentra/react";
+import toast from "react-hot-toast";
+import { AlertCircle } from "lucide-react";
 import Splash from "./Splash";
 import BottomNav from "../components/BottomNav";
 import PickStreamingPlatform from "./PickStreamingPlatform";
@@ -8,11 +10,16 @@ import StreamSetup from "./StreamSetup";
 import AddedKeyPage from "./AddedKeyPage";
 import StreamPlatformHub from "./StreamPlatformHub";
 import EstablishedStreamConnections from "./EstabllishedStreamConnections";
-import { useStreamStatus } from '../hooks/useStreamStatus';
-import { Platform, StreamConfig, LogEntry, StreamConnection } from '../types';
-import { isStreamingStatus, postJson, formatTimestamp, getRtmpUrl } from '../utils';
-import youtubeIcon from '../../../public/assets/youtube/YoutubePlaylogo.svg';
-import twitchIcon from '../../../public/assets/Property 1=Twitch fill.svg';
+import { useStreamStatus } from "../hooks/useStreamStatus";
+import { Platform, StreamConfig, LogEntry, StreamConnection } from "../types";
+import {
+  isStreamingStatus,
+  postJson,
+  formatTimestamp,
+  getRtmpUrl,
+} from "../utils";
+import { BACKEND_URL } from "../config/api";
+import platformsIcon from "../../../public/assets/Platforms Icon.svg";
 
 const MAX_LOGS = 100;
 
@@ -24,7 +31,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const { userId: authUserId } = useMentraAuth();
   const userId = userIdProp || authUserId;
   const [showSplash, setShowSplash] = useState(true);
-  const [activeTab, setActiveTab] = useState('new');
+  const [activeTab, setActiveTab] = useState("new");
   const [showAddedKeyPage, setShowAddedKeyPage] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<{
     id: string;
@@ -43,21 +50,23 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
   // Stream connections management - load from API on mount
   const [connections, setConnections] = useState<StreamConnection[]>([]);
-  const [selectedConnection, setSelectedConnection] = useState<StreamConnection | null>(null);
-  const [activeStreamingConnectionId, setActiveStreamingConnectionId] = useState<string | null>(null);
+  const [selectedConnection, setSelectedConnection] =
+    useState<StreamConnection | null>(null);
+  const [activeStreamingConnectionId, setActiveStreamingConnectionId] =
+    useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Stream configuration state
-  const [streamKey, setStreamKey] = useState('');
-  const [streamUrl, setStreamUrl] = useState('');
+  const [streamKey, setStreamKey] = useState("");
+  const [streamUrl, setStreamUrl] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [currentStreamStatus, setCurrentStreamStatus] = useState('offline');
+  const [currentStreamStatus, setCurrentStreamStatus] = useState("offline");
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   const skipSplashAnimation = true; // Set to true to skip splash
 
   // Add log entry
-  const addLog = useCallback((type: LogEntry['type'], message: string) => {
+  const addLog = useCallback((type: LogEntry["type"], message: string) => {
     const timestamp = formatTimestamp();
     setLogs((prev) => {
       const newLogs = [...prev, { timestamp, type, message }];
@@ -68,11 +77,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
   // Stream status hook
   const { status } = useStreamStatus(userId, (newStatus) => {
     // Handle session status
-    if (newStatus.hasActiveSession !== undefined && !newStatus.hasActiveSession) {
-      setCurrentStreamStatus('offline');
+    if (
+      newStatus.hasActiveSession !== undefined &&
+      !newStatus.hasActiveSession
+    ) {
+      setCurrentStreamStatus("offline");
       if (isStreaming) {
         setIsStreaming(false);
-        addLog('error', 'Session lost');
+        addLog("error", "Session lost");
       }
     }
 
@@ -82,31 +94,51 @@ function Container({ userId: userIdProp }: ContainerProps) {
       setCurrentStreamStatus(newStatus.streamStatus);
 
       // Log status changes for managed streams
-      if (newStatus.streamType === 'managed' && oldStatus !== newStatus.streamStatus) {
-        const statusLower = (newStatus.streamStatus || '').toLowerCase();
-        let logType: LogEntry['type'] = 'info';
-        if (statusLower === 'active' || statusLower === 'connected' || statusLower === 'streaming') {
-          logType = 'success';
-        } else if (statusLower === 'error' || statusLower === 'failed') {
-          logType = 'error';
-        } else if (statusLower === 'stopping' || statusLower === 'disconnecting') {
-          logType = 'warning';
+      if (
+        newStatus.streamType === "managed" &&
+        oldStatus !== newStatus.streamStatus
+      ) {
+        const statusLower = (newStatus.streamStatus || "").toLowerCase();
+        let logType: LogEntry["type"] = "info";
+        if (
+          statusLower === "active" ||
+          statusLower === "connected" ||
+          statusLower === "streaming"
+        ) {
+          logType = "success";
+        } else if (statusLower === "error" || statusLower === "failed") {
+          logType = "error";
+        } else if (
+          statusLower === "stopping" ||
+          statusLower === "disconnecting"
+        ) {
+          logType = "warning";
         }
-        addLog(logType, 'Status: ' + newStatus.streamStatus);
+        addLog(logType, "Status: " + newStatus.streamStatus);
       }
 
       // Log status changes for unmanaged streams
-      if (newStatus.streamType === 'unmanaged' && oldStatus !== newStatus.streamStatus) {
-        const statusLower = (newStatus.streamStatus || '').toLowerCase();
-        let logType: LogEntry['type'] = 'info';
-        if (statusLower === 'active' || statusLower === 'connected' || statusLower === 'streaming') {
-          logType = 'success';
-        } else if (statusLower === 'error' || statusLower === 'failed') {
-          logType = 'error';
-        } else if (statusLower === 'stopping' || statusLower === 'disconnecting') {
-          logType = 'warning';
+      if (
+        newStatus.streamType === "unmanaged" &&
+        oldStatus !== newStatus.streamStatus
+      ) {
+        const statusLower = (newStatus.streamStatus || "").toLowerCase();
+        let logType: LogEntry["type"] = "info";
+        if (
+          statusLower === "active" ||
+          statusLower === "connected" ||
+          statusLower === "streaming"
+        ) {
+          logType = "success";
+        } else if (statusLower === "error" || statusLower === "failed") {
+          logType = "error";
+        } else if (
+          statusLower === "stopping" ||
+          statusLower === "disconnecting"
+        ) {
+          logType = "warning";
         }
-        addLog(logType, 'Status: ' + newStatus.streamStatus);
+        addLog(logType, "Status: " + newStatus.streamStatus);
       }
 
       // Update streaming state
@@ -118,13 +150,13 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
     // Handle errors
     if (newStatus.error) {
-      console.error('Stream error:', newStatus.error);
-      addLog('error', newStatus.error);
+      console.error("Stream error:", newStatus.error);
+      addLog("error", newStatus.error);
     }
 
     // Handle preview URL for managed streams
-    if (newStatus.streamType === 'managed' && newStatus.previewUrl) {
-      addLog('info', 'Stream preview available');
+    if (newStatus.streamType === "managed" && newStatus.previewUrl) {
+      addLog("info", "Stream preview available");
     }
   });
 
@@ -134,32 +166,34 @@ function Container({ userId: userIdProp }: ContainerProps) {
       if (!userId) return;
 
       try {
-        const response = await fetch('/api/stream-configs', {
+        const response = await fetch(`${BACKEND_URL}/api/stream-configs`, {
           headers: {
-            'X-User-Id': userId
-          }
+            "X-User-Id": userId,
+          },
         });
 
         if (response.ok) {
           const data = await response.json();
           if (data.ok && data.configs) {
             // Transform API configs to StreamConnection format
-            const transformedConnections: StreamConnection[] = data.configs.map((config: any) => ({
-              id: config._id,
-              platform: config.platform,
-              platformName: config.platformName,
-              platformLogoIcon: config.platformLogoIcon,
-              maskedStreamKey: config.maskedStreamKey,
-              fullStreamKey: config.streamKey,
-              rtmpUrl: config.rtmpUrl || undefined,
-              createdAt: config.createdAt,
-              isActive: false
-            }));
+            const transformedConnections: StreamConnection[] = data.configs.map(
+              (config: any) => ({
+                id: config._id,
+                platform: config.platform,
+                platformName: config.platformName,
+                platformLogoIcon: config.platformLogoIcon,
+                maskedStreamKey: config.maskedStreamKey,
+                fullStreamKey: config.streamKey,
+                rtmpUrl: config.rtmpUrl || undefined,
+                createdAt: config.createdAt,
+                isActive: false,
+              })
+            );
             setConnections(transformedConnections);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch connections from API:', error);
+        console.error("Failed to fetch connections from API:", error);
       }
     };
 
@@ -183,7 +217,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     if (showAddedKeyPage) {
       const timer = setTimeout(() => {
         setShowAddedKeyPage(false);
-        setActiveTab('stream');
+        setActiveTab("stream");
         setSelectedPlatform(null);
       }, 1500); // 3 seconds
 
@@ -195,10 +229,15 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setActiveTab(tab);
     setSelectedPlatform(null); // Reset selected platform when changing tabs
     setShowAddedKeyPage(false); // Reset added key page
-    console.log('Active tab:', tab);
+    console.log("Active tab:", tab);
   };
 
-  const handlePlatformSelect = (platformId: string, platformName: string, platformIcon: string, platformLogoIcon: string) => {
+  const handlePlatformSelect = (
+    platformId: string,
+    platformName: string,
+    platformIcon: string,
+    platformLogoIcon: string
+  ) => {
     setSelectedPlatform({
       id: platformId,
       name: platformName,
@@ -230,14 +269,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
     const rtmpUrl = getRtmpUrl(config);
 
     if (!rtmpUrl) {
-      addLog('error', 'No RTMP URL provided - please enter a stream key');
-      alert('Please enter a valid stream key');
+      addLog("error", "No RTMP URL provided - please enter a stream key");
+      toast.error("Please enter a valid stream key", { duration: 3000 });
       return;
     }
 
     // Just save the configuration, don't start streaming yet
-    addLog('info', 'Stream configuration saved for ' + selectedPlatform.name);
-    addLog('info', 'Will stream to: ' + rtmpUrl.replace(/\/[^/]*$/, '/****'));
+    addLog("info", "Stream configuration saved for " + selectedPlatform.name);
+    addLog("info", "Will stream to: " + rtmpUrl.replace(/\/[^/]*$/, "/****"));
 
     // Save connected platform with stream details
     setConnectedPlatform({
@@ -247,24 +286,24 @@ function Container({ userId: userIdProp }: ContainerProps) {
     });
 
     // Create a new connection card
-    const createdAt = new Date().toLocaleString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    const createdAt = new Date().toLocaleString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: true,
-      month: 'numeric',
-      day: 'numeric',
-      year: 'numeric'
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
     });
 
     const maskedKey = maskStreamKey(key);
 
     // Save to API
     try {
-      const response = await fetch('/api/stream-configs', {
-        method: 'POST',
+      const response = await fetch(`${BACKEND_URL}/api/stream-configs`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': userId
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
         },
         body: JSON.stringify({
           platform: selectedPlatform.id,
@@ -273,8 +312,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
           platformName: selectedPlatform.name,
           platformLogoIcon: selectedPlatform.logoIcon,
           maskedStreamKey: maskedKey,
-          createdAt
-        })
+          createdAt,
+        }),
       });
 
       if (response.ok) {
@@ -290,12 +329,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
             fullStreamKey: data.config.streamKey,
             rtmpUrl: data.config.rtmpUrl || undefined,
             createdAt: data.config.createdAt,
-            isActive: false
+            isActive: false,
           };
 
           // Add to connections list (check if platform already exists and update or add new)
-          setConnections(prev => {
-            const existingIndex = prev.findIndex(conn => conn.platform === newConnection.platform);
+          setConnections((prev) => {
+            const existingIndex = prev.findIndex(
+              (conn) => conn.platform === newConnection.platform
+            );
             if (existingIndex >= 0) {
               // Update existing connection
               const updated = [...prev];
@@ -306,14 +347,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
             return [...prev, newConnection];
           });
 
-          addLog('success', 'Configuration saved to database');
+          addLog("success", "Configuration saved to database");
         }
       } else {
-        addLog('error', 'Failed to save configuration to database');
+        addLog("error", "Failed to save configuration to database");
       }
     } catch (error) {
-      console.error('Failed to save connection to API:', error);
-      addLog('error', 'Failed to save configuration');
+      console.error("Failed to save connection to API:", error);
+      addLog("error", "Failed to save configuration");
     }
 
     setShowAddedKeyPage(true);
@@ -323,24 +364,26 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const maskStreamKey = (key: string) => {
     if (!key || key.length <= 4) return key;
     const lastFour = key.slice(-4);
-    const maskedPart = '*'.repeat(Math.min(key.length - 4, 20));
+    const maskedPart = "*".repeat(Math.min(key.length - 4, 20));
     return maskedPart + lastFour;
   };
 
   const handleStartStream = async () => {
-    console.log('handleStartStream called');
-    console.log('connectedPlatform:', connectedPlatform);
-    console.log('currentStreamStatus:', currentStreamStatus);
-    console.log('userId:', userId);
+    console.log("handleStartStream called");
+    console.log("connectedPlatform:", connectedPlatform);
+    console.log("currentStreamStatus:", currentStreamStatus);
+    console.log("userId:", userId);
 
     if (!connectedPlatform || isStreamingStatus(currentStreamStatus)) {
-      console.log('Returning early - connectedPlatform or streaming status check failed');
+      console.log(
+        "Returning early - connectedPlatform or streaming status check failed"
+      );
       return;
     }
 
     const platform = connectedPlatform.id as Platform;
-    const key = connectedPlatform.streamKey || '';
-    const url = (connectedPlatform.streamUrl || '').trim();
+    const key = connectedPlatform.streamKey || "";
+    const url = (connectedPlatform.streamUrl || "").trim();
 
     // Build config for managed streaming with restreaming
     const config: StreamConfig = {
@@ -350,48 +393,83 @@ function Container({ userId: userIdProp }: ContainerProps) {
       useCloudflareManaged: true,
     };
 
-    console.log('Stream config:', config);
+    console.log("Stream config:", config);
 
-    setCurrentStreamStatus('Connecting');
+    setCurrentStreamStatus("Connecting");
     setIsStreaming(true);
     setActiveStreamingConnectionId(selectedConnection?.id || null);
-    addLog('info', '--- New stream session ---');
-    addLog('info', 'Starting managed stream...');
-    if (platform !== 'here') {
+    addLog("info", "--- New stream session ---");
+    addLog("info", "Starting managed stream...");
+    if (platform !== "here") {
       const rtmpUrl = getRtmpUrl(config);
-      addLog('info', 'Restreaming to: ' + (rtmpUrl ? rtmpUrl.replace(/\/[^/]*$/, '/****') : 'unknown'));
+      addLog(
+        "info",
+        "Restreaming to: " +
+          (rtmpUrl ? rtmpUrl.replace(/\/[^/]*$/, "/****") : "unknown")
+      );
     }
-    addLog('info', 'Requesting Cloudflare managed stream...');
+    addLog("info", "Requesting Cloudflare managed stream...");
 
-    console.log('Calling postJson to /api/stream/managed/start');
-    const result = await postJson('/api/stream/managed/start', config, userId || undefined);
-    console.log('postJson result:', result);
+    console.log("Calling postJson to /api/stream/managed/start");
+    console.log("Config being sent:", config);
+    console.log("UserId being sent:", userId);
+
+    const result = await postJson(
+      "/api/stream/managed/start",
+      config,
+      userId || undefined
+    );
+    console.log("postJson result:", result);
+    console.log("result.ok:", result.ok);
+    console.log("result.error:", result.error);
 
     if (result.ok === false) {
-      setCurrentStreamStatus('Error');
+      setCurrentStreamStatus("Error");
       setIsStreaming(false);
       setActiveStreamingConnectionId(null);
-      addLog('error', 'Failed to start: ' + (result.error || 'Unknown error'));
-      alert('Failed to start stream: ' + (result.error || 'Unknown error'));
+      addLog("error", "Failed to start: " + (result.error || "Unknown error"));
+
+      // Show toast notification with WiFi-specific styling if it's a WiFi error
+      const errorMessage = result.error || "Unknown error";
+      if (errorMessage.includes("WiFi") || errorMessage.includes("wifi")) {
+        toast.error(errorMessage, {
+          duration: 5000,
+          style: {
+            background: "#FEE2E2",
+            color: "#991B1B",
+            border: "1px solid #FCA5A5",
+            fontSize: "10px",
+          },
+          icon: <AlertCircle className="w-10 h-10 " />,
+        });
+      } else {
+        toast.error("Failed to start stream: " + errorMessage, {
+          duration: 4000,
+        });
+      }
     } else {
-      addLog('success', 'Managed stream request sent');
+      addLog("success", "Managed stream request sent");
     }
   };
 
   const handleStopStream = async () => {
     if (!isStreamingStatus(currentStreamStatus)) return;
 
-    setCurrentStreamStatus('Stopping');
-    addLog('info', 'Stopping stream...');
+    setCurrentStreamStatus("Stopping");
+    addLog("info", "Stopping stream...");
 
-    const result = await postJson('/api/stream/managed/stop', {}, userId || undefined);
+    const result = await postJson(
+      "/api/stream/managed/stop",
+      {},
+      userId || undefined
+    );
 
     if (result.ok === false) {
-      addLog('error', 'Failed to stop: ' + (result.error || 'Unknown error'));
+      addLog("error", "Failed to stop: " + (result.error || "Unknown error"));
     } else {
-      addLog('success', 'Stream stopped');
+      addLog("success", "Stream stopped");
       setIsStreaming(false);
-      setCurrentStreamStatus('offline');
+      setCurrentStreamStatus("offline");
       setActiveStreamingConnectionId(null);
     }
   };
@@ -403,69 +481,83 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
     // First, stop the stream if it's currently streaming
     if (isStreamingStatus(currentStreamStatus)) {
-      addLog('info', 'Stopping stream before deletion...');
-      setCurrentStreamStatus('Stopping');
+      addLog("info", "Stopping stream before deletion...");
+      setCurrentStreamStatus("Stopping");
 
-      const result = await postJson('/api/stream/managed/stop', {}, userId || undefined);
+      const result = await postJson(
+        "/api/stream/managed/stop",
+        {},
+        userId || undefined
+      );
 
       if (result.ok === false) {
-        addLog('error', 'Failed to stop stream: ' + (result.error || 'Unknown error'));
-        alert('Failed to stop stream. Please try again.');
+        addLog(
+          "error",
+          "Failed to stop stream: " + (result.error || "Unknown error")
+        );
+        toast.error("Failed to stop stream. Please try again.", {
+          duration: 4000,
+        });
         setIsDeleting(false);
         return; // Don't proceed with deletion if stop failed
       }
 
       // Wait a moment for stream to fully stop
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      addLog('success', 'Stream stopped');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      addLog("success", "Stream stopped");
     }
 
     // Delete from API
     try {
-      const response = await fetch(`/api/stream-configs/${selectedConnection.platform}`, {
-        method: 'DELETE',
-        headers: {
-          'X-User-Id': userId
+      const response = await fetch(
+        `${BACKEND_URL}/api/stream-configs/${selectedConnection.platform}`,
+        {
+          method: "DELETE",
+          headers: {
+            "X-User-Id": userId,
+          },
         }
-      });
+      );
 
       if (response.ok) {
-        addLog('success', 'Configuration deleted from database');
+        addLog("success", "Configuration deleted from database");
         // Now remove from connections array
-        setConnections(prev => prev.filter(conn => conn.id !== selectedConnection.id));
+        setConnections((prev) =>
+          prev.filter((conn) => conn.id !== selectedConnection.id)
+        );
       } else {
-        addLog('error', 'Failed to delete from database');
+        addLog("error", "Failed to delete from database");
       }
     } catch (error) {
-      console.error('Failed to delete connection from API:', error);
-      addLog('error', 'Failed to delete configuration');
+      console.error("Failed to delete connection from API:", error);
+      addLog("error", "Failed to delete configuration");
     }
 
     // Clear selected connection and go back to list
     setSelectedConnection(null);
     setConnectedPlatform(null);
     setIsStreaming(false);
-    setCurrentStreamStatus('offline');
+    setCurrentStreamStatus("offline");
     setLogs([]);
     setIsDeleting(false);
 
-    addLog('info', `Deleted stream key for ${selectedConnection.platformName}`);
+    addLog("info", `Deleted stream key for ${selectedConnection.platformName}`);
   };
 
   const handleEditConnection = async (newKey: string, newRtmpUrl?: string) => {
     if (!selectedConnection || !newKey.trim() || !userId) return;
 
     const trimmedKey = newKey.trim();
-    const trimmedUrl = (newRtmpUrl || '').trim();
+    const trimmedUrl = (newRtmpUrl || "").trim();
     const maskedKey = maskStreamKey(trimmedKey);
 
     // Update via API
     try {
-      const response = await fetch('/api/stream-configs', {
-        method: 'POST',
+      const response = await fetch(`${BACKEND_URL}/api/stream-configs`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': userId
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
         },
         body: JSON.stringify({
           platform: selectedConnection.platform,
@@ -474,32 +566,34 @@ function Container({ userId: userIdProp }: ContainerProps) {
           platformName: selectedConnection.platformName,
           platformLogoIcon: selectedConnection.platformLogoIcon,
           maskedStreamKey: maskedKey,
-          createdAt: selectedConnection.createdAt
-        })
+          createdAt: selectedConnection.createdAt,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.ok) {
           // Update the connection with new key and URL
-          setConnections(prev => prev.map(conn => {
-            if (conn.id === selectedConnection.id) {
-              return {
-                ...conn,
-                fullStreamKey: trimmedKey,
-                maskedStreamKey: maskedKey,
-                rtmpUrl: trimmedUrl || undefined
-              };
-            }
-            return conn;
-          }));
+          setConnections((prev) =>
+            prev.map((conn) => {
+              if (conn.id === selectedConnection.id) {
+                return {
+                  ...conn,
+                  fullStreamKey: trimmedKey,
+                  maskedStreamKey: maskedKey,
+                  rtmpUrl: trimmedUrl || undefined,
+                };
+              }
+              return conn;
+            })
+          );
 
           // Update selected connection
           const updatedConnection = {
             ...selectedConnection,
             fullStreamKey: trimmedKey,
             maskedStreamKey: maskedKey,
-            rtmpUrl: trimmedUrl || undefined
+            rtmpUrl: trimmedUrl || undefined,
           };
           setSelectedConnection(updatedConnection);
 
@@ -508,18 +602,21 @@ function Container({ userId: userIdProp }: ContainerProps) {
             setConnectedPlatform({
               ...connectedPlatform,
               streamKey: trimmedKey,
-              streamUrl: trimmedUrl
+              streamUrl: trimmedUrl,
             });
           }
 
-          addLog('success', `Updated stream configuration for ${selectedConnection.platformName}`);
+          addLog(
+            "success",
+            `Updated stream configuration for ${selectedConnection.platformName}`
+          );
         }
       } else {
-        addLog('error', 'Failed to update configuration in database');
+        addLog("error", "Failed to update configuration in database");
       }
     } catch (error) {
-      console.error('Failed to update connection in API:', error);
-      addLog('error', 'Failed to update configuration');
+      console.error("Failed to update connection in API:", error);
+      addLog("error", "Failed to update configuration");
     }
   };
 
@@ -549,12 +646,17 @@ function Container({ userId: userIdProp }: ContainerProps) {
     }
 
     switch (activeTab) {
-      case 'new':
-        return <PickStreamingPlatform onPlatformSelect={handlePlatformSelect} />;
-      case 'stream':
+      case "new":
+        return (
+          <PickStreamingPlatform onPlatformSelect={handlePlatformSelect} />
+        );
+      case "stream":
         // If a connection is selected (streaming or about to stream), show StreamPlatformHub
         if (selectedConnection) {
-          const showPreview = status.streamType === 'managed' && !!status.previewUrl && isStreaming;
+          const showPreview =
+            status.streamType === "managed" &&
+            !!status.previewUrl &&
+            isStreaming;
           return (
             <StreamPlatformHub
               platformName={selectedConnection.platformName}
@@ -566,14 +668,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
               onGoBack={() => {
                 setSelectedConnection(null);
                 setIsStreaming(false);
-                setCurrentStreamStatus('offline');
+                setCurrentStreamStatus("offline");
                 setLogs([]);
               }}
               onDelete={handleDeleteConnection}
               onSaveEdit={handleEditConnection}
               isDeleting={isDeleting}
               currentStreamKey={selectedConnection.fullStreamKey}
-              currentRtmpUrl={selectedConnection.rtmpUrl || ''}
+              currentRtmpUrl={selectedConnection.rtmpUrl || ""}
               logs={logs}
               maskedStreamKey={selectedConnection.maskedStreamKey}
               previewUrl={status.previewUrl ?? null}
@@ -594,55 +696,78 @@ function Container({ userId: userIdProp }: ContainerProps) {
                 icon: connection.platformLogoIcon,
                 logoIcon: connection.platformLogoIcon,
                 streamKey: connection.fullStreamKey,
-                streamUrl: connection.rtmpUrl
+                streamUrl: connection.rtmpUrl,
               });
               setStreamKey(connection.fullStreamKey);
-              setStreamUrl(connection.rtmpUrl || '');
+              setStreamUrl(connection.rtmpUrl || "");
             }}
-            onNavigateToNew={() => setActiveTab('new')}
+            onNavigateToNew={() => setActiveTab("new")}
             activeConnectionId={activeStreamingConnectionId}
             isStreaming={isStreaming}
           />
         );
-      case 'settings':
+      case "settings":
         return (
-          <div className="flex flex-col items-center justify-center h-full p-[24px]">
-            <div className="w-full max-w-[400px] space-y-[16px]">
-              <h2 className="text-[24px] font-semibold text-[var(--secondary-background)] mb-[24px]">Settings</h2>
+          <div className="flex flex-col h-full p-[24px]">
+            <h2 className="text-[24px] font-semibold text-[var(--secondary-background)] mb-[24px]">
+              Settings
+            </h2>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-full max-w-[400px]">
+                <div className="flex items-center justify-center mb-[64px]">
+                  <img
+                    src={platformsIcon}
+                    alt="Platforms Icon"
+                    className="w-[92px] h-[92px]"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (
+                      window.confirm(
+                        "Are you sure you want to clear all saved stream keys? This action cannot be undone."
+                      )
+                    ) {
+                      if (!userId) return;
 
-              <button
-                onClick={async () => {
-                  if (window.confirm('Are you sure you want to clear all saved stream keys? This action cannot be undone.')) {
-                    if (!userId) return;
+                      // Delete all connections from API
+                      try {
+                        const deletePromises = connections.map((conn) =>
+                          fetch(
+                            `${BACKEND_URL}/api/stream-configs/${conn.platform}`,
+                            {
+                              method: "DELETE",
+                              headers: { "X-User-Id": userId },
+                            }
+                          )
+                        );
+                        await Promise.all(deletePromises);
 
-                    // Delete all connections from API
-                    try {
-                      const deletePromises = connections.map(conn =>
-                        fetch(`/api/stream-configs/${conn.platform}`, {
-                          method: 'DELETE',
-                          headers: { 'X-User-Id': userId }
-                        })
-                      );
-                      await Promise.all(deletePromises);
-
-                      setConnections([]);
-                      setSelectedConnection(null);
-                      setConnectedPlatform(null);
-                      alert('All stream keys have been cleared.');
-                    } catch (error) {
-                      console.error('Failed to clear all configs:', error);
-                      alert('Failed to clear all stream keys. Please try again.');
+                        setConnections([]);
+                        setSelectedConnection(null);
+                        setConnectedPlatform(null);
+                        toast.success("All stream keys have been cleared.", {
+                          duration: 3000,
+                        });
+                      } catch (error) {
+                        console.error("Failed to clear all configs:", error);
+                        toast.error(
+                          "Failed to clear all stream keys. Please try again.",
+                          { duration: 4000 }
+                        );
+                      }
                     }
-                  }
-                }}
-                className="w-full bg-red-500 text-white rounded-[16px] px-[24px] h-[48px] text-[16px] font-medium hover:bg-red-600 transition-colors"
-              >
-                Clear All Stream Keys
-              </button>
+                  }}
+                  className="w-full bg-black text-white rounded-[16px] px-[24px] h-[48px] text-[16px] font-medium hover:bg-red-600 transition-colors"
+                >
+                  Clear All Stream Keys
+                </button>
 
-              <p className="text-[14px] text-gray-500 text-center mt-[8px]">
-                {connections.length} stream key{connections.length !== 1 ? 's' : ''} saved
-              </p>
+                <p className="text-[14px] text-gray-500 text-center mt-[8px]">
+                  {connections.length} stream key
+                  {connections.length !== 1 ? "s" : ""} saved
+                </p>
+              </div>
             </div>
           </div>
         );
@@ -673,9 +798,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
             transition={{ duration: 0.3 }}
             className="w-full h-full flex flex-col"
           >
-            <div className="flex-1 overflow-hidden">
-              {renderContent()}
-            </div>
+            <div className="flex-1 overflow-hidden">{renderContent()}</div>
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
           </motion.div>
         )}

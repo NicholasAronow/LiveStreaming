@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useMentraAuth } from '@mentra/react';
+import { Toaster } from 'react-hot-toast';
 import { StatusBar } from './components/StatusBar';
 import { PlatformSelector } from './components/PlatformSelector';
 import { StreamConfig } from './components/StreamConfig';
@@ -43,18 +44,23 @@ function App() {
   }
 
   // Handle unauthenticated state
-  // if (!isAuthenticated || !userId) {
-  //   return (
-  //     <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-  //       <div style={{ textAlign: 'center', padding: '20px' }}>
-  //         <h2 style={{ color: '#ef4444', marginBottom: '10px' }}>Not Authenticated</h2>
-  //         <p style={{ color: '#6b7280' }}>Please open this page from the MentraOS manager app.</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  if (!isAuthenticated || !userId) {
+    return (
+      <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <h2 style={{ color: '#ef4444', marginBottom: '10px' }}>Not Authenticated</h2>
+          <p style={{ color: '#6b7280' }}>Please open this page from the MentraOS manager app.</p>
+        </div>
+      </div>
+    );
+  }
 
-  return <AuthenticatedApp userId={userId || ""} />;
+  return (
+    <>
+      <Toaster position="top-center" />
+      <AuthenticatedApp userId={userId || ""} />
+    </>
+  );
 }
 
 function AuthenticatedApp({ userId }: { userId: string }) {
@@ -210,7 +216,7 @@ function AuthenticatedApp({ userId }: { userId: string }) {
 
   return (
 
-    <Container userId={userId} />
+    <Container userId={userId || ""} />
 
 
 

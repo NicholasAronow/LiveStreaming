@@ -57,8 +57,19 @@ export async function postJson(url: string, body?: unknown, userId?: string) {
       credentials: 'include', // Include cookies for authentication
       body: JSON.stringify(body || {}),
     });
-    const data = await response.json().catch(() => ({ ok: response.ok }));
+
+    const data = await response.json().catch((err) => {
+      console.error('Failed to parse JSON response:', err);
+      return { ok: response.ok };
+    });
+
     console.log('postJson response:', response.status, data);
+
+    // If response is not OK and data doesn't have ok field, set it based on response status
+    if (!response.ok && data.ok === undefined) {
+      data.ok = false;
+    }
+
     return data;
   } catch (error: any) {
     console.error('API error:', error);
