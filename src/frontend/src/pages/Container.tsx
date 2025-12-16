@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { AlertCircle } from "lucide-react";
 import Splash from "./Splash";
 import BottomNav from "../components/BottomNav";
+import LiveBanner from "../components/LiveBanner";
 import PickStreamingPlatform from "./PickStreamingPlatform";
 import StreamSetup from "./StreamSetup";
 import AddedKeyPage from "./AddedKeyPage";
@@ -84,6 +85,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
       setCurrentStreamStatus("offline");
       if (isStreaming) {
         setIsStreaming(false);
+        setActiveStreamingConnectionId(null);
         addLog("error", "Session lost");
       }
     }
@@ -146,6 +148,23 @@ function Container({ userId: userIdProp }: ContainerProps) {
       if (shouldShowStop !== isStreaming) {
         setIsStreaming(shouldShowStop);
       }
+
+      // Restore active connection ID from streamPlatform when streaming
+      if (shouldShowStop && newStatus.streamPlatform) {
+        setActiveStreamingConnectionId((currentId) => {
+          // Only update if not already set to avoid unnecessary re-renders
+          if (currentId) return currentId;
+
+          // Find the connection that matches the streaming platform
+          const activeConnection = connections.find(
+            (conn) => conn.platform === newStatus.streamPlatform
+          );
+          return activeConnection?.id || null;
+        });
+      } else if (!shouldShowStop) {
+        // Clear active connection when not streaming
+        setActiveStreamingConnectionId(null);
+      }
     }
 
     // Handle errors
@@ -187,6 +206,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
                 rtmpUrl: config.rtmpUrl || undefined,
                 createdAt: config.createdAt,
                 isActive: false,
+                streamStartTime: config.streamStartTime || undefined,
               })
             );
             setConnections(transformedConnections);
@@ -199,6 +219,28 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
     fetchConnections();
   }, [userId]);
+
+  // Restore active connection ID after connections are loaded and when stream status indicates active streaming
+  useEffect(() => {
+    if (
+      connections.length > 0 &&
+      status.streamPlatform &&
+      isStreaming &&
+      !activeStreamingConnectionId
+    ) {
+      const activeConnection = connections.find(
+        (conn) => conn.platform === status.streamPlatform
+      );
+      if (activeConnection) {
+        setActiveStreamingConnectionId(activeConnection.id);
+      }
+    }
+  }, [
+    connections,
+    status.streamPlatform,
+    isStreaming,
+    activeStreamingConnectionId,
+  ]);
 
   useEffect(() => {
     if (skipSplashAnimation) {
@@ -238,6 +280,22 @@ function Container({ userId: userIdProp }: ContainerProps) {
     platformIcon: string,
     platformLogoIcon: string
   ) => {
+    // For "streamer" platform, skip StreamSetup and auto-connect with test values
+    if (platformId === "streamer") {
+      const testPlatform = {
+        id: platformId,
+        name: platformName,
+        icon: platformIcon,
+        logoIcon: platformLogoIcon,
+      };
+      setSelectedPlatform(testPlatform);
+      // Auto-connect with test values and immediately switch to stream tab
+      // Pass the platform directly to avoid race condition with state update
+      handleConnect("test", "test", testPlatform);
+      // Don't change tab here - let handleConnect flow handle it naturally
+      return;
+    }
+
     setSelectedPlatform({
       id: platformId,
       name: platformName,
@@ -250,8 +308,9 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setSelectedPlatform(null);
   };
 
-  const handleConnect = async (key: string, url: string) => {
-    if (!selectedPlatform || !userId) return;
+  const handleConnect = async (key: string, url: string, platformOverride?: typeof selectedPlatform) => {
+    const currentPlatform = platformOverride || selectedPlatform;
+    if (!currentPlatform || !userId) return;
 
     // Store the stream configuration (use empty string if url is just whitespace)
     const cleanUrl = url.trim();
@@ -259,9 +318,9 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setStreamUrl(cleanUrl);
 
     // Build RTMP URL using the utility function to validate
-    const platform = selectedPlatform.id as Platform;
+    const platformId = currentPlatform.id as Platform;
     const config: StreamConfig = {
-      platform,
+      platform: platformId,
       streamKey: key,
       customRtmpUrl: cleanUrl,
       useCloudflareManaged: true, // Use Cloudflare managed streaming with restreaming
@@ -275,12 +334,12 @@ function Container({ userId: userIdProp }: ContainerProps) {
     }
 
     // Just save the configuration, don't start streaming yet
-    addLog("info", "Stream configuration saved for " + selectedPlatform.name);
+    addLog("info", "Stream configuration saved for " + currentPlatform.name);
     addLog("info", "Will stream to: " + rtmpUrl.replace(/\/[^/]*$/, "/****"));
 
     // Save connected platform with stream details
     setConnectedPlatform({
-      ...selectedPlatform,
+      ...currentPlatform,
       streamKey: key,
       streamUrl: cleanUrl,
     });
@@ -306,11 +365,11 @@ function Container({ userId: userIdProp }: ContainerProps) {
           "X-User-Id": userId,
         },
         body: JSON.stringify({
-          platform: selectedPlatform.id,
+          platform: currentPlatform.id,
           streamKey: key,
           rtmpUrl: cleanUrl,
-          platformName: selectedPlatform.name,
-          platformLogoIcon: selectedPlatform.logoIcon,
+          platformName: currentPlatform.name,
+          platformLogoIcon: currentPlatform.logoIcon,
           maskedStreamKey: maskedKey,
           createdAt,
         }),
@@ -330,6 +389,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
             rtmpUrl: data.config.rtmpUrl || undefined,
             createdAt: data.config.createdAt,
             isActive: false,
+            streamStartTime: data.config.streamStartTime || undefined,
           };
 
           // Add to connections list (check if platform already exists and update or add new)
@@ -357,6 +417,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
       addLog("error", "Failed to save configuration");
     }
 
+    // Show AddedKeyPage for all platforms (including "streamer")
     setShowAddedKeyPage(true);
   };
 
@@ -449,6 +510,46 @@ function Container({ userId: userIdProp }: ContainerProps) {
       }
     } else {
       addLog("success", "Managed stream request sent");
+
+      // Refetch the connection to get the updated streamStartTime from the database
+      if (userId && selectedConnection) {
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/stream-configs`, {
+            headers: {
+              "X-User-Id": userId,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.ok && data.configs) {
+              const updatedConfig = data.configs.find(
+                (config: any) => config.platform === platform
+              );
+              if (updatedConfig && updatedConfig.streamStartTime) {
+                // Update the selectedConnection with the new streamStartTime
+                setSelectedConnection((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    streamStartTime: updatedConfig.streamStartTime,
+                  };
+                });
+                // Also update in the connections array
+                setConnections((prev) =>
+                  prev.map((conn) =>
+                    conn.id === selectedConnection.id
+                      ? { ...conn, streamStartTime: updatedConfig.streamStartTime }
+                      : conn
+                  )
+                );
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Failed to refetch stream start time:", error);
+        }
+      }
     }
   };
 
@@ -471,6 +572,25 @@ function Container({ userId: userIdProp }: ContainerProps) {
       setIsStreaming(false);
       setCurrentStreamStatus("offline");
       setActiveStreamingConnectionId(null);
+
+      // Clear streamStartTime from local state
+      if (selectedConnection) {
+        setSelectedConnection((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            streamStartTime: undefined,
+          };
+        });
+        // Also update in the connections array
+        setConnections((prev) =>
+          prev.map((conn) =>
+            conn.id === selectedConnection.id
+              ? { ...conn, streamStartTime: undefined }
+              : conn
+          )
+        );
+      }
     }
   };
 
@@ -631,10 +751,11 @@ function Container({ userId: userIdProp }: ContainerProps) {
       );
     }
 
-    // If a platform is selected, show the setup page
-    if (selectedPlatform) {
+    // If a platform is selected, show the setup page (unless it's "streamer" platform)
+    if (selectedPlatform && selectedPlatform.id !== "streamer") {
       return (
         <StreamSetup
+          id={selectedPlatform.id}
           platform={selectedPlatform.id}
           platformName={selectedPlatform.name}
           platformIcon={selectedPlatform.icon}
@@ -680,6 +801,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
               maskedStreamKey={selectedConnection.maskedStreamKey}
               previewUrl={status.previewUrl ?? null}
               showPreview={showPreview}
+              streamStartTime={selectedConnection.streamStartTime}
             />
           );
         }
@@ -776,6 +898,16 @@ function Container({ userId: userIdProp }: ContainerProps) {
     }
   };
 
+  // Determine if we should show the live banner
+  // Show banner on all pages except when viewing StreamPlatformHub (selectedConnection is set AND activeTab is "stream")
+  const isOnStreamPlatformHub = selectedConnection && activeTab === "stream";
+  const showLiveBanner = isStreaming && !isOnStreamPlatformHub;
+
+  // Get the active streaming platform info for the banner
+  const activePlatform = connections.find(
+    (conn) => conn.id === activeStreamingConnectionId
+  );
+
   return (
     <div className="w-screen h-screen bg-white flex flex-col relative">
       <AnimatePresence mode="wait">
@@ -798,6 +930,12 @@ function Container({ userId: userIdProp }: ContainerProps) {
             transition={{ duration: 0.3 }}
             className="w-full h-full flex flex-col"
           >
+            {showLiveBanner && (
+              <LiveBanner
+                platformLogoIcon={activePlatform?.platformLogoIcon}
+                platformName={activePlatform?.platformName}
+              />
+            )}
             <div className="flex-1 overflow-hidden">{renderContent()}</div>
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
           </motion.div>

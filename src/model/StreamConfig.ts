@@ -10,6 +10,7 @@ export interface IStreamConfig extends Document {
   maskedStreamKey: string;
   createdAt: string;
   updatedAt: Date;
+  streamStartTime?: number; // Unix timestamp (ms) when stream started, null when not streaming
 }
 
 const StreamConfigSchema: Schema = new Schema({
@@ -49,6 +50,10 @@ const StreamConfigSchema: Schema = new Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  streamStartTime: {
+    type: Number,
+    default: null
   }
 });
 

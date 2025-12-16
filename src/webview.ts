@@ -1,5 +1,6 @@
 import { AuthenticatedRequest, AppServer } from '@mentra/sdk';
 import type { AppSession } from '@mentra/sdk';
+import './streamSession'; // Import to extend AppSession type
 import express, { Response } from 'express';
 import path from 'path';
 import cors from 'cors';
@@ -277,6 +278,21 @@ export function setupExpressRoutes(
           // Note: The SDK doesn't provide a way to remove event listeners, so we just let it stay
         }
 
+        // Save stream start time to database
+        if (session.streamPlatform && userId) {
+          try {
+            await StreamConfig.findOneAndUpdate(
+              { userId, platform: session.streamPlatform },
+              { streamStartTime: Date.now() },
+              { new: true }
+            );
+            console.log(`[/api/stream/managed/start] Saved stream start time for platform: ${session.streamPlatform}`);
+          } catch (dbError) {
+            console.error('[/api/stream/managed/start] Failed to save start time:', dbError);
+            // Don't fail the request if DB update fails
+          }
+        }
+
         broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true });
       } catch (streamError: any) {
@@ -346,6 +362,22 @@ export function setupExpressRoutes(
         session.dashUrl = null;
         session.streamId = null;
         session.previewUrl = null;
+
+        // Clear stream start time from database
+        if (session.streamPlatform && userId) {
+          try {
+            await StreamConfig.findOneAndUpdate(
+              { userId, platform: session.streamPlatform },
+              { streamStartTime: null },
+              { new: true }
+            );
+            console.log(`[/api/stream/managed/stop] Cleared stream start time for platform: ${session.streamPlatform}`);
+          } catch (dbError) {
+            console.error('[/api/stream/managed/stop] Failed to clear start time:', dbError);
+            // Don't fail the request if DB update fails
+          }
+        }
+
         broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true });
       } else {
@@ -353,6 +385,21 @@ export function setupExpressRoutes(
         console.log('No managed stream found to stop');
         session.streamType = null;
         session.streamStatus = 'idle';
+
+        // Clear stream start time from database even if no active stream
+        if (session.streamPlatform && userId) {
+          try {
+            await StreamConfig.findOneAndUpdate(
+              { userId, platform: session.streamPlatform },
+              { streamStartTime: null },
+              { new: true }
+            );
+            console.log(`[/api/stream/managed/stop] Cleared stream start time for platform: ${session.streamPlatform}`);
+          } catch (dbError) {
+            console.error('[/api/stream/managed/stop] Failed to clear start time:', dbError);
+          }
+        }
+
         broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true, message: 'No stream to stop' });
       }
@@ -710,6 +757,7 @@ export type StreamStatusPayload = {
   error?: string | null;
   glassesBatteryPercent?: number | null;
   hasActiveSession?: boolean;
+  streamPlatform?: string | null;
 };
 
 /**
@@ -728,6 +776,7 @@ export function formatStreamStatus(session?: AppSession): StreamStatusPayload {
     error: session?.error ?? null,
     glassesBatteryPercent: session?.glassesBatteryPercent ?? null,
     hasActiveSession: !!session,
+    streamPlatform: session?.streamPlatform ?? null,
   };
 }
 

@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import youtubePlayLogo from "../../../public/assets/youtube/YoutubePlaylogo.svg";
 
 interface StreamSetupProps {
+  id: string;
   platform: string;
   platformName: string;
   platformIcon: string;
@@ -11,7 +12,15 @@ interface StreamSetupProps {
   onConnect: (streamKey: string, streamUrl: string) => void;
 }
 
-function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, onBack, onConnect }: StreamSetupProps) {
+function StreamSetup({
+  id,
+  platform,
+  platformName,
+  platformIcon,
+  platformLogoIcon,
+  onBack,
+  onConnect,
+}: StreamSetupProps) {
   const [streamUrl, setStreamUrl] = useState("");
   const [streamKey, setStreamKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -114,7 +123,14 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
   };
 
   const handleConnect = () => {
-    console.log("Connecting to", platform, "with URL:", streamUrl, "and key:", streamKey);
+    console.log(
+      "Connecting to",
+      platform,
+      "with URL:",
+      streamUrl,
+      "and key:",
+      streamKey
+    );
     // Call the onConnect callback with stream key and URL
     onConnect(streamKey, streamUrl || getDefaultStreamUrl(platform));
   };
@@ -125,7 +141,11 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[8px]">
-            <img src={platformLogoIcon || platformIcon} alt={platformName} className=" h-[36px]" />
+            <img
+              src={platformLogoIcon || platformIcon}
+              alt={platformName}
+              className=" h-[36px]"
+            />
             <h1 className="text-[16px] text-[var(--secondary-background)] font-fa font-semibold">
               {platformName}
             </h1>
@@ -139,43 +159,49 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
         </div>
 
         {/* Info Card */}
-        <div
-          className="p-[12px] rounded-[10px] flex gap-[12px] h-[79px] items-center border"
-          style={{
-            backgroundColor: getPlatformColors(platform).bg,
-            borderColor: getPlatformColors(platform).border
-          }}
-        >
-          <img src={getInfoCardIcon(platform)} alt={platformName} className="w-[40px] h-[40px]" />
-          <div className="flex-1 flex flex-col justify-center">
-            <h3 className="text-[14px] text-[var(--secondary-background)] font-normal">
-              Get your {platformName} stream key
-            </h3>
-            <p className="text-[12px] text-[var(--muted-forground)] font-normal">
-              Dashboard → Settings → Stream → Primary Stream Key
-            </p>
-          </div>
-          <button
-            onClick={handleCopyPlatformUrl}
-            className="text-purple-600 hover:text-purple-700"
+        {id == "custom" ? null : (
+          <div
+            className="p-[12px] rounded-[10px] flex gap-[12px] h-[79px] items-center border"
+            style={{
+              backgroundColor: getPlatformColors(platform).bg,
+              borderColor: getPlatformColors(platform).border,
+            }}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              color="#99A1AF"
+            <img
+              src={getInfoCardIcon(platform)}
+              alt={platformName}
+              className="w-[40px] h-[40px]"
+            />
+            <div className="flex-1 flex flex-col justify-center">
+              <h3 className="text-[14px] text-[var(--secondary-background)] font-normal">
+                Get your {platformName} stream key
+              </h3>
+              <p className="text-[12px] text-[var(--muted-forground)] font-normal">
+                Dashboard → Settings → Stream → Primary Stream Key
+              </p>
+            </div>
+            <button
+              onClick={handleCopyPlatformUrl}
+              className="text-purple-600 hover:text-purple-700"
             >
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </button>
-        </div>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                color="#99A1AF"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Stream Server URL */}
         <div className="flex flex-col gap-[12px]">
@@ -190,13 +216,22 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
               placeholder={getDefaultStreamUrl(platform)}
               className="h-[36px] flex-1 px-4 py-3 border border-[var(--border)] text-[14px] text-[var(--muted-forground)] focus:outline-none transition-colors rounded-[8px]"
               style={{
-                borderColor: 'var(--border)',
+                borderColor: "var(--border)",
               }}
-              onFocus={(e) => e.currentTarget.style.borderColor = getPlatformAccentColor(platform)}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+              onFocus={(e) =>
+                (e.currentTarget.style.borderColor =
+                  getPlatformAccentColor(platform))
+              }
+              onBlur={(e) =>
+                (e.currentTarget.style.borderColor = "var(--border)")
+              }
             />
             <button
-              onClick={() => navigator.clipboard.writeText(streamUrl || getDefaultStreamUrl(platform))}
+              onClick={() =>
+                navigator.clipboard.writeText(
+                  streamUrl || getDefaultStreamUrl(platform)
+                )
+              }
               className="w-[36px] h-[36px] rounded-[8px] border border-[var(--border)] hover:bg-gray-50 transition-colors flex justify-center items-center"
             >
               <svg
@@ -231,22 +266,41 @@ function StreamSetup({ platform, platformName, platformIcon, platformLogoIcon, o
                 placeholder="Paste your stream key here"
                 className="h-[36px] w-full px-4 py-3 border border-[var(--border)] rounded-[8px] text-[14px] text-[var(--muted-forground)] focus:outline-none transition-colors pr-10"
                 style={{
-                  borderColor: 'var(--border)',
+                  borderColor: "var(--border)",
                 }}
-                onFocus={(e) => e.currentTarget.style.borderColor = getPlatformAccentColor(platform)}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor =
+                    getPlatformAccentColor(platform))
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--border)")
+                }
               />
               <button
                 onClick={() => setShowKey(!showKey)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-forground)] hover:text-[var(--secondary-background)]"
               >
                 {showKey ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>

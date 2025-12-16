@@ -14,6 +14,7 @@ export interface StreamStatus {
   error?: string | null;
   glassesBatteryPercent?: number | null;
   hasActiveSession?: boolean;
+  streamPlatform?: string | null;
 }
 
 export interface StreamConfig {
@@ -39,4 +40,5 @@ export interface StreamConnection {
   rtmpUrl?: string;
   createdAt: string;
   isActive?: boolean;
+  streamStartTime?: number; // Unix timestamp (ms) when stream started
 }

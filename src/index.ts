@@ -244,10 +244,22 @@ class StreamerApp extends AppServer {
 
     // Broadcast on disconnect and cleanup the mapping
     const disconnectedUnsubscribe = session.events.onDisconnected(
-      (info: any) => {
+      async (info: any) => {
         try {
           // Only broadcast a disconnected state if the SDK marks it as permanent
           if (info && typeof info === "object" && info.permanent === true) {
+            // Clear stream start times for all platforms for this user
+            try {
+              const StreamConfig = (await import('./model/StreamConfig')).default;
+              await StreamConfig.updateMany(
+                { userId },
+                { streamStartTime: null }
+              );
+              console.log(`[onDisconnected] Cleared stream start times for user: ${userId}`);
+            } catch (dbError) {
+              console.error('[onDisconnected] Failed to clear stream start times:', dbError);
+            }
+
             this.userSessionsMap.delete(userId);
             broadcastStreamStatus(userId, formatStreamStatus(undefined));
           }
@@ -298,6 +310,18 @@ class StreamerApp extends AppServer {
           console.error("Error terminating stream on stop:", streamError);
           // Continue with cleanup even if stream stop fails
         }
+      }
+
+      // Clear stream start times for all platforms for this user
+      try {
+        const StreamConfig = (await import('./model/StreamConfig')).default;
+        await StreamConfig.updateMany(
+          { userId },
+          { streamStartTime: null }
+        );
+        console.log(`[onStop] Cleared stream start times for user: ${userId}`);
+      } catch (dbError) {
+        console.error('[onStop] Failed to clear stream start times:', dbError);
       }
 
       // Ensure base cleanup (disconnects and clears SDK's active session maps)

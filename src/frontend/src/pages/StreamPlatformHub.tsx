@@ -23,6 +23,7 @@ interface StreamPlatformHubProps {
   maskedStreamKey?: string;
   previewUrl?: string | null;
   showPreview?: boolean;
+  streamStartTime?: number;
 }
 
 function StreamPlatformHub({
@@ -42,7 +43,8 @@ function StreamPlatformHub({
   logs = [],
   maskedStreamKey,
   previewUrl = null,
-  showPreview = false
+  showPreview = false,
+  streamStartTime
 }: StreamPlatformHubProps) {
   const [duration, setDuration] = useState(0);
   const [logsExpanded, setLogsExpanded] = useState(false);
@@ -50,23 +52,62 @@ function StreamPlatformHub({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Update duration when streaming
+  // Update duration when streaming - calculate from database start time
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const status = streamStatus.toLowerCase();
-    const isActuallyStreaming = isStreaming && (status === 'streaming' || status === 'active' || status === 'connected');
+    // Consider streaming/active/connected as actively streaming
+    // Also include connecting since stream has been initiated
+    const isActuallyStreaming = isStreaming && (
+      status === 'streaming' ||
+      status === 'active' ||
+      status === 'connected' ||
+      status === 'connecting'
+    );
+
+    console.log('[StreamPlatformHub] Duration effect:', {
+      isStreaming,
+      streamStatus,
+      status,
+      isActuallyStreaming,
+      streamStartTime
+    });
 
     if (isActuallyStreaming) {
-      interval = setInterval(() => {
-        setDuration(prev => prev + 1);
-      }, 1000);
-    } else {
+      if (streamStartTime) {
+        // We have a start time from database - calculate elapsed time
+        const elapsed = Math.floor((Date.now() - streamStartTime) / 1000);
+        // Safety check: if elapsed is negative, it means streamStartTime is in the future (shouldn't happen)
+        if (elapsed < 0) {
+          console.warn('[StreamPlatformHub] Invalid streamStartTime (future time), resetting');
+          setDuration(0);
+        } else {
+          console.log('[StreamPlatformHub] Using streamStartTime, elapsed:', elapsed);
+          setDuration(elapsed);
+
+          // Update duration every second based on start time
+          interval = setInterval(() => {
+            const currentElapsed = Math.floor((Date.now() - streamStartTime) / 1000);
+            if (currentElapsed >= 0) {
+              setDuration(currentElapsed);
+            }
+          }, 1000);
+        }
+      } else {
+        // No start time yet - keep duration at 0 until we get it from database
+        console.log('[StreamPlatformHub] No streamStartTime yet, waiting for database update');
+        setDuration(0);
+      }
+    } else if (!isStreaming) {
+      // Stream stopped - reset duration
+      console.log('[StreamPlatformHub] Stream stopped, resetting duration');
       setDuration(0);
     }
+
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isStreaming, streamStatus]);
+  }, [isStreaming, streamStatus, streamStartTime]);
 
   // Refresh iframe preview every 30 seconds to prevent pausing
   useEffect(() => {
