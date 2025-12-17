@@ -73,7 +73,7 @@ function PickStreamingPlatform({
     },
 
     {
-      id: "custom",
+      id: "other",
       platformName: "Custom",
       imgAdress: customIcon,
       imgAdressFill: customIconFill,

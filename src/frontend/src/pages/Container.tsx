@@ -446,11 +446,20 @@ function Container({ userId: userIdProp }: ContainerProps) {
     const key = connectedPlatform.streamKey || "";
     const url = (connectedPlatform.streamUrl || "").trim();
 
+    // For custom platforms, concatenate URL and key to form the full RTMP URL
+    let fullCustomRtmpUrl = url;
+    if (platform === "other" && url && key) {
+      // If URL doesn't already end with the key, append it
+      if (!url.endsWith(key)) {
+        fullCustomRtmpUrl = `${url}/${key}`;
+      }
+    }
+
     // Build config for managed streaming with restreaming
     const config: StreamConfig = {
       platform,
       streamKey: key,
-      customRtmpUrl: url,
+      customRtmpUrl: fullCustomRtmpUrl,
       useCloudflareManaged: true,
     };
 
