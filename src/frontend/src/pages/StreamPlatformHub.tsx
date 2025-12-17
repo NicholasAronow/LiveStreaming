@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import trashIcon from "../../../public/assets/trash.svg";
 import cameraStreamIcon from "../../../public/assets/cameraStreamIcon.svg";
 import { LogEntry } from "../types";
@@ -24,6 +25,7 @@ interface StreamPlatformHubProps {
   previewUrl?: string | null;
   showPreview?: boolean;
   streamStartTime?: number;
+  platformId?: string;
 }
 
 function StreamPlatformHub({
@@ -45,6 +47,7 @@ function StreamPlatformHub({
   previewUrl = null,
   showPreview = false,
   streamStartTime,
+  platformId,
 }: StreamPlatformHubProps) {
   const [duration, setDuration] = useState(0);
   const [logsExpanded, setLogsExpanded] = useState(false);
@@ -237,6 +240,30 @@ function StreamPlatformHub({
     return "Off";
   };
 
+  // Check if this is the "streamer" platform (Stream Here)
+  const isStreamerPlatform = platformId === "streamer" || platformName === "Stream Here";
+
+  // Handle share button click - copy preview URL to clipboard
+  const handleShareClick = async () => {
+    if (!previewUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(previewUrl);
+      toast.success("Stream URL copied to clipboard!", {
+        duration: 3000,
+        style: {
+          background: "#10B981",
+          color: "#FFFFFF",
+        },
+      });
+    } catch (error) {
+      console.error("Failed to copy URL to clipboard:", error);
+      toast.error("Failed to copy URL to clipboard", {
+        duration: 3000,
+      });
+    }
+  };
+
   return (
     <>
       {/* Edit Stream Key Dialog */}
@@ -381,25 +408,58 @@ function StreamPlatformHub({
             </div>
 
             <div className="flex items-center gap-[9px]">
-              {/* Edit Button - Opens Edit Dialog */}
-              <button
-                onClick={() => setIsEditDialogOpen(true)}
-                className="text-[14px] w-[60px] h-[30px] border border-[var(--border)] rounded-[12px] text-[var(--secondary-background)] hover:bg-gray-50 transition-colors font-semibold"
-              >
-                Edit
-              </button>
+              {/* Share Button - Shown only for streamer platform */}
+              {isStreamerPlatform && (
+                <button
+                  onClick={handleShareClick}
+                  disabled={!previewUrl}
+                  className={`flex items-center gap-[6px] px-[12px] h-[30px] border border-[var(--border)] rounded-[12px] font-semibold text-[14px] transition-colors ${
+                    previewUrl
+                      ? "text-[var(--secondary-background)] hover:bg-gray-50"
+                      : "text-gray-400 cursor-not-allowed opacity-50"
+                  }`}
+                  title={previewUrl ? "Copy stream URL" : "Waiting for stream URL..."}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Share
+                </button>
+              )}
 
-              {/* Delete Button - Opens Delete Dialog */}
-              <button
-                onClick={() => setIsDeleteDialogOpen(true)}
-                className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition-colors"
-              >
-                <img
-                  src={trashIcon}
-                  alt="Delete"
-                  className="w-[20px] h-[20px]"
-                />
-              </button>
+              {/* Edit Button - Opens Edit Dialog (hidden for streamer platform) */}
+              {!isStreamerPlatform && (
+                <button
+                  onClick={() => setIsEditDialogOpen(true)}
+                  className="text-[14px] w-[60px] h-[30px] border border-[var(--border)] rounded-[12px] text-[var(--secondary-background)] hover:bg-gray-50 transition-colors font-semibold"
+                >
+                  Edit
+                </button>
+              )}
+
+              {/* Delete Button - Opens Delete Dialog (hidden for streamer platform) */}
+              {!isStreamerPlatform && (
+                <button
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <img
+                    src={trashIcon}
+                    alt="Delete"
+                    className="w-[20px] h-[20px]"
+                  />
+                </button>
+              )}
             </div>
           </div>
 
@@ -430,8 +490,8 @@ function StreamPlatformHub({
                 </span>
               </div>
 
-              {/* Stream Key - Only show if available */}
-              {maskedStreamKey && (
+              {/* Stream Key - Only show if available and not streamer platform */}
+              {maskedStreamKey && !isStreamerPlatform && (
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] text-[var(--secondary-background)]">
                     Stream Key

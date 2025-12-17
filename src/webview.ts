@@ -362,22 +362,6 @@ export function setupExpressRoutes(
         session.dashUrl = null;
         session.streamId = null;
         session.previewUrl = null;
-
-        // Clear stream start time from database
-        if (session.streamPlatform && userId) {
-          try {
-            await StreamConfig.findOneAndUpdate(
-              { userId, platform: session.streamPlatform },
-              { streamStartTime: null },
-              { new: true }
-            );
-            console.log(`[/api/stream/managed/stop] Cleared stream start time for platform: ${session.streamPlatform}`);
-          } catch (dbError) {
-            console.error('[/api/stream/managed/stop] Failed to clear start time:', dbError);
-            // Don't fail the request if DB update fails
-          }
-        }
-
         broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true });
       } else {
@@ -385,21 +369,6 @@ export function setupExpressRoutes(
         console.log('No managed stream found to stop');
         session.streamType = null;
         session.streamStatus = 'idle';
-
-        // Clear stream start time from database even if no active stream
-        if (session.streamPlatform && userId) {
-          try {
-            await StreamConfig.findOneAndUpdate(
-              { userId, platform: session.streamPlatform },
-              { streamStartTime: null },
-              { new: true }
-            );
-            console.log(`[/api/stream/managed/stop] Cleared stream start time for platform: ${session.streamPlatform}`);
-          } catch (dbError) {
-            console.error('[/api/stream/managed/stop] Failed to clear start time:', dbError);
-          }
-        }
-
         broadcastStreamStatus(userId, formatStreamStatus(activeSession));
         res.json({ ok: true, message: 'No stream to stop' });
       }

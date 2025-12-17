@@ -1,6 +1,6 @@
 export type StreamType = 'managed' | 'unmanaged' | null;
 
-export type Platform = 'here' | 'youtube' | 'twitch' | 'instagram' | 'x' | 'other';
+export type Platform = 'here' | 'youtube' | 'twitch' | 'instagram' | 'x' | 'other' | 'streamer';
 
 export interface StreamStatus {
   streamType: StreamType;
@@ -32,7 +32,7 @@ export interface LogEntry {
 
 export interface StreamConnection {
   id: string;
-  platform: 'youtube' | 'twitch' | 'facebook' | 'instagram' | 'tiktok' | 'x' | 'other';
+  platform: 'youtube' | 'twitch' | 'facebook' | 'instagram' | 'tiktok' | 'x' | 'other' | 'streamer';
   platformName: string;
   platformLogoIcon: string;
   maskedStreamKey: string;

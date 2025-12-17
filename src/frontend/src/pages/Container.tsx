@@ -76,7 +76,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
   }, []);
 
   // Stream status hook
-  const { status } = useStreamStatus(userId, (newStatus) => {
+  const { status } = useStreamStatus(userId || undefined, (newStatus) => {
     // Handle session status
     if (
       newStatus.hasActiveSession !== undefined &&
@@ -280,19 +280,39 @@ function Container({ userId: userIdProp }: ContainerProps) {
     platformIcon: string,
     platformLogoIcon: string
   ) => {
-    // For "streamer" platform, skip StreamSetup and auto-connect with test values
+    // For "streamer" platform, go directly to StreamPlatformHub without stream key setup
     if (platformId === "streamer") {
-      const testPlatform = {
+      // Create a connection object for the streamer platform
+      const streamerConnection: StreamConnection = {
+        id: "streamer-direct",
+        platform: platformId,
+        platformName: platformName,
+        platformLogoIcon: platformLogoIcon,
+        maskedStreamKey: "", // No stream key needed
+        fullStreamKey: "",
+        rtmpUrl: undefined,
+        createdAt: new Date().toLocaleString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+          month: "numeric",
+          day: "numeric",
+          year: "numeric",
+        }),
+        isActive: false,
+      };
+
+      // Set the connected platform
+      setConnectedPlatform({
         id: platformId,
         name: platformName,
         icon: platformIcon,
         logoIcon: platformLogoIcon,
-      };
-      setSelectedPlatform(testPlatform);
-      // Auto-connect with test values and immediately switch to stream tab
-      // Pass the platform directly to avoid race condition with state update
-      handleConnect("test", "test", testPlatform);
-      // Don't change tab here - let handleConnect flow handle it naturally
+      });
+
+      // Set the selected connection and switch to stream tab
+      setSelectedConnection(streamerConnection);
+      setActiveTab("stream");
       return;
     }
 
@@ -791,6 +811,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
             <StreamPlatformHub
               platformName={selectedConnection.platformName}
               platformLogoIcon={selectedConnection.platformLogoIcon}
+              platformId={selectedConnection.platform}
               isStreaming={isStreaming}
               streamStatus={currentStreamStatus}
               onStartStream={handleStartStream}
