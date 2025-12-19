@@ -9,6 +9,7 @@ import StreamSetup from "./StreamSetup";
 import AddedKeyPage from "./AddedKeyPage";
 import StreamPlatformHub from "./StreamPlatformHub";
 import EstablishedStreamConnections from "./EstabllishedStreamConnections";
+import Settings from "./Settings";
 import { useStreamStatus } from "../hooks/useStreamStatus";
 import { Platform, StreamConfig, LogEntry, StreamConnection } from "../types";
 import {
@@ -842,63 +843,16 @@ function Container({ userId: userIdProp }: ContainerProps) {
         );
       case "settings":
         return (
-          <div className="flex flex-col h-full p-[24px]">
-            <h2 className="text-[24px] font-semibold text-[var(--secondary-background)] mb-[24px]">
-              Settings
-            </h2>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-full max-w-[400px]">
-                <div className="flex items-center justify-center mb-[64px]">
-                  <img
-                    src={platformsIcon}
-                    alt="Platforms Icon"
-                    className="w-[92px] h-[92px]"
-                  />
-                </div>
-                <button
-                  onClick={async () => {
-                    if (
-                      window.confirm(
-                        "Are you sure you want to clear all saved stream keys? This action cannot be undone."
-                      )
-                    ) {
-                      if (!userId) return;
-
-                      // Delete all connections from API
-                      try {
-                        const deletePromises = connections.map((conn) =>
-                          fetch(
-                            `${BACKEND_URL}/api/stream-configs/${conn.platform}`,
-                            {
-                              method: "DELETE",
-                              headers: { "X-User-Id": userId },
-                            }
-                          )
-                        );
-                        await Promise.all(deletePromises);
-
-                        setConnections([]);
-                        setSelectedConnection(null);
-                        setConnectedPlatform(null);
-                        showSuccessToast("All stream keys have been cleared.");
-                      } catch (error) {
-                        console.error("Failed to clear all configs:", error);
-                        showErrorToast("Failed to clear all stream keys. Please try again.");
-                      }
-                    }
-                  }}
-                  className="w-full bg-black text-white rounded-[16px] px-[24px] h-[48px] text-[16px] font-medium hover:bg-red-600 transition-colors"
-                >
-                  Clear All Stream Keys
-                </button>
-
-                <p className="text-[14px] text-gray-500 text-center mt-[8px]">
-                  {connections.length} stream key
-                  {connections.length !== 1 ? "s" : ""} saved
-                </p>
-              </div>
-            </div>
-          </div>
+          <Settings
+            connections={connections}
+            userId={userId || undefined}
+            platformsIcon={platformsIcon}
+            onClearAllKeys={() => {
+              setConnections([]);
+              setSelectedConnection(null);
+              setConnectedPlatform(null);
+            }}
+          />
         );
       default:
         return null;

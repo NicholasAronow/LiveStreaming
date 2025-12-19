@@ -29,11 +29,16 @@ export default {
       },
       animation: {
         'pulse-custom': 'pulse-custom 2s infinite',
+        'fadeIn': 'fadeIn 0.3s ease-in',
       },
       keyframes: {
         'pulse-custom': {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
+        },
+        'fadeIn': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
       },
     },

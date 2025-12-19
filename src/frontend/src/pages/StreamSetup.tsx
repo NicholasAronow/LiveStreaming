@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import youtubePlayLogo from "../../../public/assets/youtube/YoutubePlaylogo.svg";
 import { showSuccessToast } from "../utils/toast";
 import { isIOS, isAndroid } from "../utils";
+import { StreamSetupSkeleton } from "../components/skeleton";
 
 interface StreamSetupProps {
   id: string;
@@ -25,6 +26,16 @@ function StreamSetup({
   const [streamUrl, setStreamUrl] = useState("");
   const [streamKey, setStreamKey] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading state for images and content
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const getDefaultStreamUrl = (platform: string) => {
     switch (platform) {
@@ -136,8 +147,13 @@ function StreamSetup({
     onConnect(streamKey, streamUrl || getDefaultStreamUrl(platform));
   };
 
+  // Show skeleton while loading
+  if (isLoading) {
+    return <StreamSetupSkeleton />;
+  }
+
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white">
+    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-white animate-fadeIn">
       <div className="flex flex-col gap-[24px]">
         {/* Header */}
         <div className="flex items-center justify-between">

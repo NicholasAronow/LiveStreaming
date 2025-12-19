@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import PlatformItem from "../components/PlatformItem";
+import { PickStreamingPlatformSkeleton } from "../components/skeleton";
 import youtubeIcon from "../../../public/assets//youtube/Property 1=Youtube.svg";
 import youtubeIconFill from "../../../public/assets/youtube/Property 1=Youtube fill.svg";
 import youtubeLogo from "../../../public/assets/youtube/YoutubeSoloLogo.svg";
@@ -29,6 +30,16 @@ function PickStreamingPlatform({
   onPlatformSelect,
 }: PickStreamingPlatformProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading state for images and content
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const platforms = [
     {
@@ -99,8 +110,13 @@ function PickStreamingPlatform({
     }
   };
 
+  // Show skeleton while loading
+  if (isLoading) {
+    return <PickStreamingPlatformSkeleton />;
+  }
+
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[25px] pb-[55px]">
+    <div className="w-full h-full overflow-y-auto px-[24px] pt-[25px] pb-[55px] animate-fadeIn">
       <div className="flex flex-col items-center gap-[24px]">
         <div className="text-[var(--secondary-background)] text-[20px] font-semibold">
           Where do you want to stream?

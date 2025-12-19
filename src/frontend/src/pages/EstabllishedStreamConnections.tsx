@@ -1,5 +1,8 @@
-import StreamConnectionCard from '../components/StreamConnectionCard'
-import { StreamConnection } from '../types'
+import { useState, useEffect } from 'react';
+import StreamConnectionCard from '../components/StreamConnectionCard';
+import { StreamConnection } from '../types';
+import { EstablishedStreamConnectionsSkeleton } from '../components/skeleton';
+import { Rocket } from 'lucide-react';
 
 interface EstablishedStreamConnectionsProps {
   connections: StreamConnection[];
@@ -10,19 +13,39 @@ interface EstablishedStreamConnectionsProps {
 }
 
 function EstabllishedStreamConnections({ connections, onOpenConnection, onNavigateToNew, activeConnectionId, isStreaming }: EstablishedStreamConnectionsProps) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading state for images and content
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return <EstablishedStreamConnectionsSkeleton />;
+  }
+
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA]">
-      <div className="flex flex-col gap-[24px]">
+    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA] animate-fadeIn">
+      <div className="flex flex-col gap-[24px] h-full">
         {connections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pt-[100px] px-[24px]">
+            <div className="mb-[24px] flex items-center justify-center">
+              <div className="bg-gradient-to-br from-green-500 via-orange-500 to-red-500 p-4 rounded-full">
+                <Rocket size={48} className="text-white" strokeWidth={2} />
+              </div>
+            </div>
             <div className="text-center mb-[32px]">
               <h3 className="text-[20px] font-semibold text-[var(--secondary-background)] mb-[12px]">
                 No Saved Streams
               </h3>
               <p className="text-[16px] text-[var(--muted-forground)] leading-relaxed">
                 You don't have any preset streams saved yet.
-                <br />
-                Add a new stream to get started!
+
               </p>
             </div>
 
