@@ -214,6 +214,21 @@ export function setupExpressRoutes(
       // Cast to any to access custom properties added to the session
       const session = activeSession as any;
 
+      // Check if there's an existing stream and stop it first
+      try {
+        const existingStreamInfo = await activeSession.camera.checkExistingStream();
+        if (existingStreamInfo.hasActiveStream && existingStreamInfo.streamInfo?.type === 'managed') {
+          console.log('[/api/stream/managed/start] Found existing managed stream, stopping it first...');
+          await activeSession.camera.stopManagedStream();
+          // Wait a moment for the stream to fully stop
+          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('[/api/stream/managed/start] Existing stream stopped successfully');
+        }
+      } catch (checkError) {
+        console.error('[/api/stream/managed/start] Error checking/stopping existing stream:', checkError);
+        // Continue anyway - the startManagedStream will handle it
+      }
+
       // Save configuration
       if (req.body?.platform) session.streamPlatform = req.body.platform;
       if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
@@ -350,28 +365,32 @@ export function setupExpressRoutes(
 
       const session = activeSession as any;
 
-      // First check if there's an existing stream to stop
-      const streamInfo = await activeSession.camera.checkExistingStream();
+      try {
+        // First check if there's an existing stream to stop
+        const streamInfo = await activeSession.camera.checkExistingStream();
 
-      if (streamInfo.hasActiveStream && streamInfo.streamInfo?.type === 'managed') {
-        // There is a managed stream, try to stop it
-        await activeSession.camera.stopManagedStream();
-        session.streamType = null;
-        session.streamStatus = 'idle';
-        session.hlsUrl = null;
-        session.dashUrl = null;
-        session.streamId = null;
-        session.previewUrl = null;
-        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-        res.json({ ok: true });
-      } else {
-        // No managed stream found
-        console.log('No managed stream found to stop');
-        session.streamType = null;
-        session.streamStatus = 'idle';
-        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-        res.json({ ok: true, message: 'No stream to stop' });
+        if (streamInfo.hasActiveStream && streamInfo.streamInfo?.type === 'managed') {
+          // There is a managed stream, try to stop it
+          console.log('[/api/stream/managed/stop] Stopping active managed stream');
+          await activeSession.camera.stopManagedStream();
+        } else {
+          // No managed stream found
+          console.log('[/api/stream/managed/stop] No managed stream found to stop');
+        }
+      } catch (stopError) {
+        console.error('[/api/stream/managed/stop] Error during stop operation:', stopError);
+        // Continue to clear session state even if stop failed
       }
+
+      // Always clear session state after attempting to stop
+      session.streamType = null;
+      session.streamStatus = 'idle';
+      session.hlsUrl = null;
+      session.dashUrl = null;
+      session.streamId = null;
+      session.previewUrl = null;
+      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+      res.json({ ok: true });
     } catch (err: any) {
       console.error('Error stopping managed stream:', err);
       // Even if stop fails, update UI to reflect no stream

@@ -64,7 +64,22 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const [currentStreamStatus, setCurrentStreamStatus] = useState("offline");
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const skipSplashAnimation = true; // Set to true to skip splash
+  // Check if splash should be shown based on 20-minute interval
+  const shouldShowSplash = () => {
+    const lastShownTime = localStorage.getItem('lastSplashShown');
+    const now = Date.now();
+    const twentyMinutesInMs = 20 * 60 * 1000; // 20 minutes in milliseconds
+
+    if (!lastShownTime) {
+      // First time loading, show splash
+      return true;
+    }
+
+    const timeSinceLastShown = now - parseInt(lastShownTime, 10);
+    return timeSinceLastShown >= twentyMinutesInMs;
+  };
+
+  const skipSplashAnimation = !shouldShowSplash(); // Show splash every 20 minutes
 
   // Add log entry
   const addLog = useCallback((type: LogEntry["type"], message: string) => {
@@ -246,9 +261,12 @@ function Container({ userId: userIdProp }: ContainerProps) {
     if (skipSplashAnimation) {
       setShowSplash(false);
     } else {
+      // Save the current timestamp to localStorage when splash is shown
+      localStorage.setItem('lastSplashShown', Date.now().toString());
+
       const timer = setTimeout(() => {
         setShowSplash(false);
-      }, 1500); // 3 seconds
+      }, 1500); // 1.5 seconds
 
       return () => clearTimeout(timer);
     }
@@ -274,48 +292,62 @@ function Container({ userId: userIdProp }: ContainerProps) {
     console.log("Active tab:", tab);
   };
 
-  const handlePlatformSelect = (
+  const handlePlatformSelect = async (
     platformId: string,
     platformName: string,
     platformIcon: string,
     platformLogoIcon: string
   ) => {
-    // For "streamer" platform, go directly to StreamPlatformHub without stream key setup
+    // Special handling for "Stream Here" platform - auto-configure and go directly to hub
     if (platformId === "streamer") {
-      // Create a connection object for the streamer platform
-      const streamerConnection: StreamConnection = {
-        id: "streamer-direct",
-        platform: platformId,
-        platformName: platformName,
-        platformLogoIcon: platformLogoIcon,
-        maskedStreamKey: "", // No stream key needed
-        fullStreamKey: "",
-        rtmpUrl: undefined,
-        createdAt: new Date().toLocaleString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-          month: "numeric",
-          day: "numeric",
-          year: "numeric",
-        }),
-        isActive: false,
-      };
+      // Auto-configure with test values
+      const testStreamKey = "test";
+      const testRtmpUrl = "rtmp://localhost:1935/live";
 
-      // Set the connected platform
-      setConnectedPlatform({
-        id: platformId,
-        name: platformName,
-        icon: platformIcon,
-        logoIcon: platformLogoIcon,
-      });
+      // Check if streamer connection already exists in database
+      const existingConnection = connections.find(conn => conn.platform === "streamer");
 
-      // Set the selected connection and switch to stream tab
-      setSelectedConnection(streamerConnection);
-      setActiveTab("stream");
+      if (existingConnection) {
+        // Connection already exists, just open it
+        setSelectedConnection(existingConnection);
+        setConnectedPlatform({
+          id: platformId,
+          name: platformName,
+          icon: platformIcon,
+          logoIcon: platformLogoIcon,
+          streamKey: existingConnection.fullStreamKey,
+          streamUrl: existingConnection.rtmpUrl,
+        });
+        setStreamKey(existingConnection.fullStreamKey);
+        setStreamUrl(existingConnection.rtmpUrl || "");
+        setActiveTab("stream");
+      } else {
+        // Create new connection silently and get the result
+        const newConnection = await handleConnect(testStreamKey, testRtmpUrl, {
+          id: platformId,
+          name: platformName,
+          icon: platformIcon,
+          logoIcon: platformLogoIcon,
+        }, true); // Skip AddedKeyPage
+
+        // Immediately set up the connection and navigate
+        if (newConnection) {
+          setSelectedConnection(newConnection);
+          setConnectedPlatform({
+            id: platformId,
+            name: platformName,
+            icon: platformIcon,
+            logoIcon: platformLogoIcon,
+            streamKey: testStreamKey,
+            streamUrl: testRtmpUrl,
+          });
+        }
+        setActiveTab("stream");
+      }
       return;
     }
 
+    // All other platforms go through StreamSetup
     setSelectedPlatform({
       id: platformId,
       name: platformName,
@@ -328,9 +360,9 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setSelectedPlatform(null);
   };
 
-  const handleConnect = async (key: string, url: string, platformOverride?: typeof selectedPlatform) => {
+  const handleConnect = async (key: string, url: string, platformOverride?: typeof selectedPlatform, skipAddedKeyPage = false): Promise<StreamConnection | undefined> => {
     const currentPlatform = platformOverride || selectedPlatform;
-    if (!currentPlatform || !userId) return;
+    if (!currentPlatform || !userId) return undefined;
 
     // Store the stream configuration (use empty string if url is just whitespace)
     const cleanUrl = url.trim();
@@ -350,7 +382,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     if (!rtmpUrl) {
       addLog("error", "No RTMP URL provided - please enter a stream key");
       showErrorToast("Please enter a valid stream key");
-      return;
+      return undefined;
     }
 
     // Just save the configuration, don't start streaming yet
@@ -428,6 +460,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
           });
 
           addLog("success", "Configuration saved to database");
+
+          // Show AddedKeyPage (unless skipped for auto-setup platforms like streamer)
+          if (!skipAddedKeyPage) {
+            setShowAddedKeyPage(true);
+          }
+
+          // Return the new connection
+          return newConnection;
         }
       } else {
         addLog("error", "Failed to save configuration to database");
@@ -437,8 +477,12 @@ function Container({ userId: userIdProp }: ContainerProps) {
       addLog("error", "Failed to save configuration");
     }
 
-    // Show AddedKeyPage for all platforms (including "streamer")
-    setShowAddedKeyPage(true);
+    // Show AddedKeyPage (unless skipped for auto-setup platforms like streamer)
+    if (!skipAddedKeyPage) {
+      setShowAddedKeyPage(true);
+    }
+
+    return undefined;
   };
 
   // Helper function to mask stream key
@@ -763,8 +807,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
       );
     }
 
-    // If a platform is selected, show the setup page (unless it's "streamer" platform)
-    if (selectedPlatform && selectedPlatform.id !== "streamer") {
+    // If a platform is selected, show the setup page (for all platforms including "streamer")
+    if (selectedPlatform) {
       return (
         <StreamSetup
           id={selectedPlatform.id}
@@ -883,7 +927,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
         {showSplash ? (
           <motion.div
             key="splash"
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1 }}

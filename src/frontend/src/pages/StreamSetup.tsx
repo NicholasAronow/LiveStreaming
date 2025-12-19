@@ -49,6 +49,8 @@ function StreamSetup({
         return "rtmps://live-upload.instagram.com:443/rtmp";
       case "x":
         return "rtmp://ca.pscp.tv:80/x";
+      case "streamer":
+        return "rtmp://localhost:1935/live";
       default:
         return "";
     }
@@ -113,6 +115,15 @@ function StreamSetup({
         return "https://studio.twitter.com/";
       default:
         return "";
+    }
+  };
+
+  const getStreamKeyPlaceholder = (platform: string) => {
+    switch (platform) {
+      case "streamer":
+        return "test";
+      default:
+        return "Paste your stream key here";
     }
   };
 
@@ -280,7 +291,7 @@ function StreamSetup({
                 type={showKey ? "text" : "password"}
                 value={streamKey}
                 onChange={(e) => setStreamKey(e.target.value)}
-                placeholder="Paste your stream key here"
+                placeholder={getStreamKeyPlaceholder(platform)}
                 className="h-[36px] w-full px-4 py-3 border border-[var(--border)] rounded-[8px] text-[14px] text-[var(--muted-forground)] focus:outline-none transition-colors pr-10"
                 style={{
                   borderColor: "var(--border)",

@@ -506,6 +506,20 @@ function StreamPlatformHub({
                 </button>
               )}
 
+              {/* Delete Button - Shown for streamer platform next to Share */}
+              {isStreamerPlatform && (
+                <button
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="w-[33px] h-[33px] border border-[var(--border)] rounded-[12px] flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <img
+                    src={trashIcon}
+                    alt="Delete"
+                    className="w-[20px] h-[20px]"
+                  />
+                </button>
+              )}
+
               {/* Edit Button - Opens Edit Dialog (hidden for streamer platform) */}
               {!isStreamerPlatform && (
                 <button
@@ -584,9 +598,9 @@ function StreamPlatformHub({
           </div>
 
           {/* Logs Section - Only show if there are logs */}
-          {logs.length > 0 && (
+          {/* {logs.length > 0 && (
             <div className="bg-[#F5F5F5] rounded-[16px] overflow-hidden">
-              {/* Logs Header - Clickable to expand/collapse */}
+              {/* Logs Header - Clickable to expand/collapse *\/}
               <button
                 onClick={() => setLogsExpanded(!logsExpanded)}
                 className="w-full p-[16px] flex items-center justify-between hover:bg-[#ECECEC] transition-colors"
@@ -616,7 +630,7 @@ function StreamPlatformHub({
                 </svg>
               </button>
 
-              {/* Logs Content - Collapsible */}
+              {/* Logs Content - Collapsible *\/}
               {logsExpanded && (
                 <div className="px-[16px] pt-[16px] pb-[16px] flex flex-col gap-[8px] max-h-[300px] overflow-y-auto">
                   {logs.map((log, index) => (
@@ -642,7 +656,7 @@ function StreamPlatformHub({
                 </div>
               )}
             </div>
-          )}
+          )} */}
 
           {/* Go Back Button */}
           <button

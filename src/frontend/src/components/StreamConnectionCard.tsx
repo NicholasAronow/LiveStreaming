@@ -10,7 +10,7 @@ interface StreamConnectionCardProps {
 
 function StreamConnectionCard({ connection, onOpen, isActive = false, isGreyedOut = false }: StreamConnectionCardProps) {
   return (
-    <div className={`bg-white border border-[var(--border)] rounded-[14px] p-[20px] flex items-center justify-between hover:shadow-sm transition-all h-[140px] ${isGreyedOut ? 'opacity-50' : ''}`}>
+    <div className={`bg-white border border-[var(--border)] rounded-[14px] p-[20px] flex items-center justify-between hover:shadow-sm transition-all h-[140px] ${isGreyedOut ? 'opacity-50' : ''} ${isActive? "border-[#DC2626] border-[2px]": ""}`}>
       <div className="flex flex-col gap-[16px]">
         <div className='flex flex-row items-center gap-[8px]'>
           <img
@@ -23,11 +23,11 @@ function StreamConnectionCard({ connection, onOpen, isActive = false, isGreyedOu
               <h3 className="text-[16px] font-semibold text-[var(--secondary-background)]">
                 {connection.platformName}
               </h3>
-              {isActive && (
+              {/* {isActive && (
                 <span className="bg-red-500 text-white text-[10px] font-bold px-[8px] py-[2px] rounded-[4px] uppercase tracking-wider">
                   LIVE
                 </span>
-              )}
+              )} */}
             </div>
           </div>
         </div>
