@@ -1,6 +1,7 @@
 import { useState } from "react";
-import toast from "react-hot-toast";
 import youtubePlayLogo from "../../../public/assets/youtube/YoutubePlaylogo.svg";
+import { showSuccessToast } from "../utils/toast";
+import { isIOS, isAndroid } from "../utils";
 
 interface StreamSetupProps {
   id: string;
@@ -106,19 +107,19 @@ function StreamSetup({
 
   const handleCopyPlatformUrl = () => {
     const url = getPlatformStreamKeyUrl(platform);
-    if (url) {
+    if (!url) return;
+
+    if (isAndroid()) {
+      // Android: Open the URL in a new window/tab
+      window.open(url, '_blank');
+    } else if (isIOS()) {
+      // iOS: Copy to clipboard
       navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard!", {
-        duration: 2000,
-        style: {
-          background: "#FFFFFF",
-          color: "#0F0F0F",
-          border: "1px solid #E5E7EB",
-          borderRadius: "12px",
-          fontSize: "14px",
-          padding: "12px 16px",
-        },
-      });
+      showSuccessToast("Link copied to clipboard!", 2000);
+    } else {
+      // Unknown platform: Default to copy
+      navigator.clipboard.writeText(url);
+      showSuccessToast("Link copied to clipboard!", 2000);
     }
   };
 
@@ -159,7 +160,7 @@ function StreamSetup({
         </div>
 
         {/* Info Card */}
-        {id == "custom" ? null : (
+        {id == "other" ? null : (
           <div
             className="p-[12px] rounded-[10px] flex gap-[12px] h-[79px] items-center border"
             style={{

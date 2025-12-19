@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMentraAuth } from "@mentra/react";
-import toast from "react-hot-toast";
-import { AlertCircle } from "lucide-react";
 import Splash from "./Splash";
 import BottomNav from "../components/BottomNav";
 import LiveBanner from "../components/LiveBanner";
@@ -21,6 +19,7 @@ import {
 } from "../utils";
 import { BACKEND_URL } from "../config/api";
 import platformsIcon from "../../../public/assets/Platforms Icon.svg";
+import { showSuccessToast, showErrorToast } from "../utils/toast";
 
 const MAX_LOGS = 100;
 
@@ -349,7 +348,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
     if (!rtmpUrl) {
       addLog("error", "No RTMP URL provided - please enter a stream key");
-      toast.error("Please enter a valid stream key", { duration: 3000 });
+      showErrorToast("Please enter a valid stream key");
       return;
     }
 
@@ -445,7 +444,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const maskStreamKey = (key: string) => {
     if (!key || key.length <= 4) return key;
     const lastFour = key.slice(-4);
-    const maskedPart = "*".repeat(Math.min(key.length - 4, 20));
+    const maskedPart = "*".repeat(Math.min(key.length - 4, 6));
     return maskedPart + lastFour;
   };
 
@@ -519,24 +518,9 @@ function Container({ userId: userIdProp }: ContainerProps) {
       setActiveStreamingConnectionId(null);
       addLog("error", "Failed to start: " + (result.error || "Unknown error"));
 
-      // Show toast notification with WiFi-specific styling if it's a WiFi error
+      // Show toast notification
       const errorMessage = result.error || "Unknown error";
-      if (errorMessage.includes("WiFi") || errorMessage.includes("wifi")) {
-        toast.error(errorMessage, {
-          duration: 5000,
-          style: {
-            background: "#FEE2E2",
-            color: "#991B1B",
-            border: "1px solid #FCA5A5",
-            fontSize: "10px",
-          },
-          icon: <AlertCircle className="w-10 h-10 " />,
-        });
-      } else {
-        toast.error("Failed to start stream: " + errorMessage, {
-          duration: 4000,
-        });
-      }
+      showErrorToast("Failed to start stream: " + errorMessage, 5000);
     } else {
       addLog("success", "Managed stream request sent");
 
@@ -644,9 +628,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
           "error",
           "Failed to stop stream: " + (result.error || "Unknown error")
         );
-        toast.error("Failed to stop stream. Please try again.", {
-          duration: 4000,
-        });
+        showErrorToast("Failed to stop stream. Please try again.");
         setIsDeleting(false);
         return; // Don't proceed with deletion if stop failed
       }
@@ -898,15 +880,10 @@ function Container({ userId: userIdProp }: ContainerProps) {
                         setConnections([]);
                         setSelectedConnection(null);
                         setConnectedPlatform(null);
-                        toast.success("All stream keys have been cleared.", {
-                          duration: 3000,
-                        });
+                        showSuccessToast("All stream keys have been cleared.");
                       } catch (error) {
                         console.error("Failed to clear all configs:", error);
-                        toast.error(
-                          "Failed to clear all stream keys. Please try again.",
-                          { duration: 4000 }
-                        );
+                        showErrorToast("Failed to clear all stream keys. Please try again.");
                       }
                     }
                   }}
@@ -938,6 +915,14 @@ function Container({ userId: userIdProp }: ContainerProps) {
     (conn) => conn.id === activeStreamingConnectionId
   );
 
+  // Handle live banner click - navigate to the active streaming platform
+  const handleLiveBannerClick = () => {
+    if (activePlatform) {
+      setSelectedConnection(activePlatform);
+      setActiveTab("stream");
+    }
+  };
+
   return (
     <div className="w-screen h-screen bg-white flex flex-col relative">
       <AnimatePresence mode="wait">
@@ -964,6 +949,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
               <LiveBanner
                 platformLogoIcon={activePlatform?.platformLogoIcon}
                 platformName={activePlatform?.platformName}
+                onClick={handleLiveBannerClick}
               />
             )}
             <div className="flex-1 overflow-hidden">{renderContent()}</div>

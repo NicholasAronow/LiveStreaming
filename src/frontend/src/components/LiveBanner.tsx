@@ -3,15 +3,19 @@ import React from 'react'
 interface LiveBannerProps {
   platformLogoIcon?: string;
   platformName?: string;
+  onClick?: () => void;
 }
 
-function LiveBanner({ platformLogoIcon, platformName }: LiveBannerProps) {
+function LiveBanner({ platformLogoIcon, platformName, onClick }: LiveBannerProps) {
   return (
-    <div className="w-full bg-gradient-to-r from-[#FA263B] to-[#FB681F] px-[24px] py-[12px] flex items-center justify-between h-[48px] ">
+    <button
+      onClick={onClick}
+      className="w-full bg-gradient-to-r from-[#FA263B] to-[#FB681F] px-[24px] py-[12px] flex items-center justify-between h-[48px] hover:opacity-90 transition-opacity cursor-pointer"
+    >
       <div className="flex items-center gap-[12px]">
         {platformName && (
           <span className="text-white text-[18px] font-semibold">
-            {platformName}
+            Streaming Now
           </span>
         )}
       </div>
@@ -22,7 +26,7 @@ function LiveBanner({ platformLogoIcon, platformName }: LiveBannerProps) {
           Live
         </span>
       </div>
-    </div>
+    </button>
   )
 }
 

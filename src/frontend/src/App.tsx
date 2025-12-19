@@ -57,7 +57,22 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-center" />
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          // Ensure toasts auto-dismiss
+          duration: 3000,
+          // Remove toast from DOM after it's dismissed
+          style: {
+            maxWidth: '500px',
+          },
+        }}
+        containerStyle={{
+          top: 20,
+        }}
+        // Limit number of toasts shown at once
+        reverseOrder={false}
+      />
       <AuthenticatedApp userId={userId || ""} />
     </>
   );

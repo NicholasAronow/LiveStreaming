@@ -85,3 +85,27 @@ export function formatTimestamp(): string {
     second: '2-digit',
   });
 }
+
+export function getPlatform(): 'ios' | 'android' | 'unknown' {
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+
+  // Check for iOS
+  if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
+    return 'ios';
+  }
+
+  // Check for Android
+  if (/android/i.test(userAgent)) {
+    return 'android';
+  }
+
+  return 'unknown';
+}
+
+export function isIOS(): boolean {
+  return getPlatform() === 'ios';
+}
+
+export function isAndroid(): boolean {
+  return getPlatform() === 'android';
+}

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import toast from "react-hot-toast";
 import trashIcon from "../../../public/assets/trash.svg";
 import cameraStreamIcon from "../../../public/assets/cameraStreamIcon.svg";
 import { LogEntry } from "../types";
 import EditStreamKeyDialog from "../components/EditStreamKeyDialog";
 import DeleteStreamDialog from "../components/DeleteStreamDialog";
+import { showSuccessToast, showErrorToast } from "../utils/toast";
 
 interface StreamPlatformHubProps {
   platformName?: string;
@@ -57,6 +57,23 @@ function StreamPlatformHub({
   const [countdown, setCountdown] = useState(20); // 20 second countdown before showing stream
   const [showCountdown, setShowCountdown] = useState(false); // Control countdown visibility
   const [countdownCompleted, setCountdownCompleted] = useState(false); // Track if countdown has been shown
+
+  // Local button state - only changes on user action or final stream states
+  const [buttonState, setButtonState] = useState<'idle' | 'starting' | 'live' | 'stopping'>('idle');
+
+  // Sync button state with streamStatus - only update for definitive states
+  useEffect(() => {
+    const status = streamStatus.toLowerCase();
+
+    // Only update button state for final/definitive states
+    if (status === 'streaming' || status === 'active' || status === 'connected') {
+      setButtonState('live');
+    } else if (status === 'offline' || status === 'error' || status === 'failed') {
+      setButtonState('idle');
+    }
+    // Ignore intermediate states like 'connecting', 'stopping', etc.
+    // Those will be set by user actions in handleToggleStream
+  }, [streamStatus]);
 
   // Update duration when streaming - calculate from database start time
   // Only start counting after the 20-second countdown finishes
@@ -194,10 +211,29 @@ function StreamPlatformHub({
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleToggleStream = () => {
-    if (isStreaming) {
+  const handleToggleStream = async () => {
+    if (buttonState === 'live') {
+      setButtonState('stopping');
       onStopStream?.();
-    } else {
+    } else if (buttonState === 'idle') {
+      // Safety check: Verify we're not already streaming before starting
+      const status = streamStatus.toLowerCase();
+      const isActuallyLive = status === 'streaming' || status === 'active' || status === 'connected';
+
+      if (isActuallyLive) {
+        // Edge case: Button shows idle but stream is actually live
+        // Stop the existing stream first, then start a new one
+        console.log('[StreamPlatformHub] Edge case detected: Stream is live but button shows idle. Stopping existing stream first...');
+        setButtonState('stopping');
+        onStopStream?.();
+
+        // Wait for stream to stop, then start new one
+        // The buttonState will change to 'idle' when status becomes 'offline'
+        // User can then click again to start
+        return;
+      }
+
+      setButtonState('starting');
       onStartStream?.();
     }
   };
@@ -249,18 +285,10 @@ function StreamPlatformHub({
 
     try {
       await navigator.clipboard.writeText(previewUrl);
-      toast.success("Stream URL copied to clipboard!", {
-        duration: 3000,
-        style: {
-          background: "#10B981",
-          color: "#FFFFFF",
-        },
-      });
+      showSuccessToast("Stream URL copied to clipboard!");
     } catch (error) {
       console.error("Failed to copy URL to clipboard:", error);
-      toast.error("Failed to copy URL to clipboard", {
-        duration: 3000,
-      });
+      showErrorToast("Failed to copy URL to clipboard");
     }
   };
 
@@ -327,7 +355,7 @@ function StreamPlatformHub({
             {showCountdown && isStreaming && (
               <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-[8px]">
-                  <p className="text-[#94A3B8] text-[12px] font-normal">
+                  <p className="text-[#a3a3a3] text-[13px] font-normal">
                     Live feed starting in
                   </p>
                   <div className="text-[38px] font-bold text-[#7f7f7f]">
@@ -356,14 +384,55 @@ function StreamPlatformHub({
           <button
             onClick={handleToggleStream}
             className={`w-full h-[44px] text-white rounded-[16px] flex items-center justify-center gap-[6px] hover:opacity-90 transition-all ${
-              isStreaming ? "bg-red-600" : "bg-[#0A0A0A]"
+              buttonState === "starting"
+                ? "bg-gray-600 cursor-not-allowed"
+                : buttonState === "stopping"
+                ? "bg-gray-600 cursor-not-allowed"
+                : buttonState === "live"
+                ? "bg-red-600"
+                : "bg-[#0A0A0A]"
             }`}
-            disabled={
-              streamStatus.toLowerCase() === "connecting" ||
-              streamStatus.toLowerCase() === "stopping"
-            }
+            disabled={buttonState === "starting" || buttonState === "stopping"}
           >
-            {isStreaming ? (
+            {buttonState === "starting" ? (
+              <>
+                <svg
+                  className="animate-spin"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path
+                    d="M12 2a10 10 0 0 1 10 10"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="text-[14px] font-medium">Starting...</span>
+              </>
+            ) : buttonState === "stopping" ? (
+              <>
+                <svg
+                  className="animate-spin"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path
+                    d="M12 2a10 10 0 0 1 10 10"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="text-[14px] font-medium">Stopping...</span>
+              </>
+            ) : buttonState === "live" ? (
               <>
                 <svg
                   width="24"
@@ -497,7 +566,7 @@ function StreamPlatformHub({
                     Stream Key
                   </span>
                   <span className="text-[14px] font-medium text-[var(--secondary-background)] font-mono">
-                    {maskedStreamKey}
+                    {maskedStreamKey.length > 10 ? maskedStreamKey.slice(-10) : maskedStreamKey}
                   </span>
                 </div>
               )}
