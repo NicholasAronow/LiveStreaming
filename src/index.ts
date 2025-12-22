@@ -19,8 +19,8 @@ const MENTRAOS_API_KEY =
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 80;
 
 class StreamerApp extends AppServer {
-  /** Map to store active user sessions */
-  private userSessionsMap = new Map<string, AppSession>();
+  /** Map to store active users with their sessions and state */
+  private userSessionsMap = new Map<string, User>();
 
   constructor() {
     super({
@@ -31,8 +31,10 @@ class StreamerApp extends AppServer {
     });
 
     // Set up Express routes with access to userSessionsMap
-    setupExpressRoutes(this, (userId: string) =>
-      this.userSessionsMap.get(userId)
+    setupExpressRoutes(
+      this,
+      (userId: string) => this.userSessionsMap.get(userId)?.getUserSession() ?? undefined,
+      (userId: string) => this.userSessionsMap.get(userId) ?? undefined
     );
   }
 
@@ -45,7 +47,7 @@ class StreamerApp extends AppServer {
     return handleToolCall(
       toolCall,
       toolCall.userId,
-      this.userSessionsMap.get(toolCall.userId)
+      this.userSessionsMap.get(toolCall.userId)?.getUserSession() ?? undefined
     );
   }
 
@@ -61,31 +63,41 @@ class StreamerApp extends AppServer {
     sessionId: string,
     userId: string
   ): Promise<void> {
-    // Track the session for this user
-    this.userSessionsMap.set(userId, session);
-
-    if (session.device.state.wifiConnected) {
-      console.log("WiFi connected to:", session.device.state.wifiSsid.value);
+    // Create or get User instance for this userId
+    let user = this.userSessionsMap.get(userId);
+    if (!user) {
+      user = new User(userId);
+      this.userSessionsMap.set(userId, user);
     }
-    session.device.state.wifiConnected.onChange((connected) => {
-      console.log("WiFi status:", connected);
-    });
 
-    // Test subscriptions
+    // Set the session in the User instance
+    user.setUserSession(session);
+
+    // Set up onChange listeners to update User class state
+    // These will be triggered automatically when the actual state becomes available
+    // Keep not that this blokc of code will take a sec at amx to get populated correctly
     session.device.state.wifiConnected.onChange((connected) => {
-      console.log("WiFi:", connected);
+      console.log(`[${userId}] WiFi status:`, connected);
+      user?.updateWifiConnected(connected);
+      console.log(`[${userId}] Updated glass state:`, user?.getGlassState());
     });
 
     session.device.state.batteryLevel.onChange((level) => {
-      console.log("Battery:", level, "%");
+      console.log(`[${userId}] Battery:`, level, "%");
+      user?.updateBatteryLevel(level);
+      console.log(`[${userId}] Updated glass state:`, user?.getGlassState());
     });
 
     session.device.state.modelName.onChange((model) => {
-      console.log("Model:", model);
+      console.log(`[${userId}] Model:`, model);
+      user?.updateModelName(model);
+      console.log(`[${userId}] Updated glass state:`, user?.getGlassState());
     });
 
     session.device.state.wifiSsid.onChange((ssid) => {
-      console.log("WiFi SSID changed to:", ssid);
+      console.log(`[${userId}] WiFi SSID changed to:`, ssid);
+      user?.updateWifiSsid(ssid);
+      console.log(`[${userId}] Updated glass state:`, user?.getGlassState());
     });
 
     // console.log(session.device.state.wifiConnected);
@@ -368,8 +380,9 @@ class StreamerApp extends AppServer {
     reason: string
   ): Promise<void> {
     try {
-      // Get the session before cleanup to send explicit stream termination commands
-      const session = this.userSessionsMap.get(userId);
+      // Get the user and session before cleanup to send explicit stream termination commands
+      const user = this.userSessionsMap.get(userId);
+      const session = user?.getUserSession();
 
       // Send explicit stream termination commands
       if (session?.streamType) {

@@ -30,10 +30,12 @@ function getUserIdFromRequest(req: any): string | null {
  * Sets up all Express routes and middleware for the server
  * @param server The server instance
  * @param getUserSession Function to get a user's active session by userId
+ * @param getUser Function to get a user's User object by userId
  */
 export function setupExpressRoutes(
   server: AppServer,
-  getUserSession?: (userId: string) => AppSession | undefined
+  getUserSession?: (userId: string) => AppSession | undefined,
+  getUser?: (userId: string) => any | undefined
 ): void {
   // Get the Express app instance
   const app = server.getExpressApp();
@@ -177,6 +179,36 @@ export function setupExpressRoutes(
           sseClientsByUser.delete(userId);
         }
       }
+    });
+  });
+
+  // API: Get glass state for a user
+  app.get('/api/glass-state', (req: any, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Get the user object
+    const user = getUser ? getUser(userId) : undefined;
+
+    if (!user) {
+      res.status(404).json({
+        error: 'User not found or not connected',
+        userId
+      });
+      return;
+    }
+
+    // Get the glass state
+    const glassState = user.getGlassState();
+
+    res.status(200).json({
+      userId,
+      glassState,
+      timestamp: new Date().toISOString()
     });
   });
 
@@ -797,9 +829,3 @@ function writeSseEvent(res: Response, event: string, data: unknown): void {
 
 // In-memory registry of SSE clients keyed by userId
 const sseClientsByUser = new Map<string, Set<Response>>();
-
-
-const glassState = () => {
-  
-
-}

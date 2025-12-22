@@ -1,3 +1,5 @@
+import { AppSession } from "@mentra/sdk";
+
 export interface GlassState {
   wifiConnected: boolean | null;
   wifiSsid: string | null;
@@ -8,6 +10,7 @@ export interface GlassState {
 export class User {
   userID: string;
   glassState: GlassState;
+  userSession: AppSession | null;
 
   constructor(userID: string) {
     this.userID = userID;
@@ -17,12 +20,13 @@ export class User {
       batteryLevel: null,
       modelName: null,
     };
+    this.userSession = null;  
   }
 
   /**
    * Update the WiFi connection state
    */
-  updateWifiConnected(connected: boolean): void {
+  updateWifiConnected(connected: boolean | null): void {
     this.glassState.wifiConnected = connected;
   }
 
@@ -36,14 +40,14 @@ export class User {
   /**
    * Update the battery level
    */
-  updateBatteryLevel(level: number): void {
+  updateBatteryLevel(level: number | null): void {
     this.glassState.batteryLevel = level;
   }
 
   /**
    * Update the model name
    */
-  updateModelName(model: string): void {
+  updateModelName(model: string | null): void {
     this.glassState.modelName = model;
   }
 
@@ -84,6 +88,20 @@ export class User {
    */
   getBatteryLevel(): number | null {
     return this.glassState.batteryLevel;
+  }
+
+  /**
+   * Set the user session
+   */
+  setUserSession(session: AppSession | null): void {
+    this.userSession = session;
+  }
+
+  /**
+   * Get the user session
+   */
+  getUserSession(): AppSession | null {
+    return this.userSession;
   }
 }
 
