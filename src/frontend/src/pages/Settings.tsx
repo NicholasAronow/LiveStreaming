@@ -10,9 +10,11 @@ interface SettingsProps {
   userId?: string;
   platformsIcon?: string;
   onClearAllKeys: () => void;
+  isStreaming?: boolean;
+  onStopStream?: () => Promise<void>;
 }
 
-function Settings({ connections, userId, platformsIcon, onClearAllKeys }: SettingsProps) {
+function Settings({ connections, userId, platformsIcon, onClearAllKeys, isStreaming, onStopStream }: SettingsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -31,8 +33,17 @@ function Settings({ connections, userId, platformsIcon, onClearAllKeys }: Settin
 
     setIsDeleting(true);
 
-    // Delete all connections from API
     try {
+      // First, stop any active streams
+      if (isStreaming && onStopStream) {
+        console.log('[Settings] Stopping active stream before clearing all keys...');
+        await onStopStream();
+        // Wait a moment for the stream to fully stop
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('[Settings] Stream stopped successfully');
+      }
+
+      // Delete all connections from API
       const deletePromises = connections.map((conn) =>
         fetch(`${BACKEND_URL}/api/stream-configs/${conn.platform}`, {
           method: "DELETE",

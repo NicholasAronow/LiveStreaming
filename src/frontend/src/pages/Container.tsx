@@ -31,7 +31,7 @@ interface ContainerProps {
 function Container({ userId: userIdProp }: ContainerProps) {
   const { userId: authUserId } = useMentraAuth();
   const userId = userIdProp || authUserId;
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(false);
   const [activeTab, setActiveTab] = useState("new");
   const [showAddedKeyPage, setShowAddedKeyPage] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<{
@@ -64,22 +64,26 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const [currentStreamStatus, setCurrentStreamStatus] = useState("offline");
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  // Check if splash should be shown based on 20-minute interval
-  const shouldShowSplash = () => {
-    const lastShownTime = localStorage.getItem('lastSplashShown');
-    const now = Date.now();
-    const twentyMinutesInMs = 20 * 60 * 1000; // 20 minutes in milliseconds
+  // Check if splash should be shown based on 20-minute interval (using useEffect like Translation app)
+  useEffect(() => {
+    const SPLASH_INTERVAL = 20 * 60 * 1000; // 20 minutes in milliseconds
+    const SPLASH_DURATION = 1500; // 1.5 seconds
+    const lastSplashTime = localStorage.getItem('lastSplashShown');
+    const currentTime = Date.now();
 
-    if (!lastShownTime) {
-      // First time loading, show splash
-      return true;
+    if (!lastSplashTime || currentTime - parseInt(lastSplashTime) >= SPLASH_INTERVAL) {
+      // Show splash screen
+      setShowSplash(true);
+      localStorage.setItem('lastSplashShown', currentTime.toString());
+
+      // Hide splash after 1.5 seconds
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+      }, SPLASH_DURATION);
+
+      return () => clearTimeout(timer);
     }
-
-    const timeSinceLastShown = now - parseInt(lastShownTime, 10);
-    return timeSinceLastShown >= twentyMinutesInMs;
-  };
-
-  const skipSplashAnimation = !shouldShowSplash(); // Show splash every 20 minutes
+  }, []);
 
   // Add log entry
   const addLog = useCallback((type: LogEntry["type"], message: string) => {
@@ -256,21 +260,6 @@ function Container({ userId: userIdProp }: ContainerProps) {
     isStreaming,
     activeStreamingConnectionId,
   ]);
-
-  useEffect(() => {
-    if (skipSplashAnimation) {
-      setShowSplash(false);
-    } else {
-      // Save the current timestamp to localStorage when splash is shown
-      localStorage.setItem('lastSplashShown', Date.now().toString());
-
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-      }, 1500); // 1.5 seconds
-
-      return () => clearTimeout(timer);
-    }
-  }, [skipSplashAnimation]);
 
   // Handle AddedKeyPage timer - show for 3 seconds then go to stream tab
   useEffect(() => {
@@ -891,6 +880,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
             connections={connections}
             userId={userId || undefined}
             platformsIcon={platformsIcon}
+            isStreaming={isStreaming}
+            onStopStream={handleStopStream}
             onClearAllKeys={() => {
               setConnections([]);
               setSelectedConnection(null);

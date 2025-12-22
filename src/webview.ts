@@ -220,8 +220,16 @@ export function setupExpressRoutes(
         if (existingStreamInfo.hasActiveStream && existingStreamInfo.streamInfo?.type === 'managed') {
           console.log('[/api/stream/managed/start] Found existing managed stream, stopping it first...');
           await activeSession.camera.stopManagedStream();
-          // Wait a moment for the stream to fully stop
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait longer for the stream to fully stop (2 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Verify the stream has actually stopped
+          const checkAgain = await activeSession.camera.checkExistingStream();
+          if (checkAgain.hasActiveStream) {
+            console.log('[/api/stream/managed/start] Stream still active after stop, waiting another 2 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+
           console.log('[/api/stream/managed/start] Existing stream stopped successfully');
         }
       } catch (checkError) {
@@ -281,9 +289,9 @@ export function setupExpressRoutes(
           activeSession.events.onDisconnected(disconnectHandler);
         });
 
-        // Timeout after 10 seconds
+        // Timeout after 45 seconds
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Stream start timeout - request took too long')), 10000)
+          setTimeout(() => reject(new Error('Stream start timeout - request took too long')), 45000)
         );
 
         await Promise.race([streamPromise, disconnectPromise, timeoutPromise]);
@@ -789,3 +797,9 @@ function writeSseEvent(res: Response, event: string, data: unknown): void {
 
 // In-memory registry of SSE clients keyed by userId
 const sseClientsByUser = new Map<string, Set<Response>>();
+
+
+const glassState = () => {
+  
+
+}

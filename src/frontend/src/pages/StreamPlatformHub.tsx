@@ -212,6 +212,12 @@ function StreamPlatformHub({
   };
 
   const handleToggleStream = async () => {
+    // Prevent multiple clicks while transitioning
+    if (buttonState === 'starting' || buttonState === 'stopping') {
+      console.log('[StreamPlatformHub] Button click ignored - already transitioning');
+      return;
+    }
+
     if (buttonState === 'live') {
       setButtonState('stopping');
       onStopStream?.();

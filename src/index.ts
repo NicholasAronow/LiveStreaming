@@ -4,6 +4,7 @@ import { setupExpressRoutes } from "./webview";
 import { handleToolCall } from "./tools";
 import { broadcastStreamStatus, formatStreamStatus } from "./webview";
 import { connectDB } from "./db";
+import { User } from "./class/User";
 
 const PACKAGE_NAME =
   process.env.PACKAGE_NAME ??
@@ -63,12 +64,79 @@ class StreamerApp extends AppServer {
     // Track the session for this user
     this.userSessionsMap.set(userId, session);
 
-    // Check if the user is connected to WiFi via glasses
-    const hasWifi = session.capabilities?.hasWifi;
-    console.log(`📶 [${userId}] WiFi capability: ${hasWifi ? 'Connected/Available' : 'Not Available'}`);
+    if (session.device.state.wifiConnected) {
+      console.log("WiFi connected to:", session.device.state.wifiSsid.value);
+    }
+    session.device.state.wifiConnected.onChange((connected) => {
+      console.log("WiFi status:", connected);
+    });
+
+    // Test subscriptions
+    session.device.state.wifiConnected.onChange((connected) => {
+      console.log("WiFi:", connected);
+    });
+
+    session.device.state.batteryLevel.onChange((level) => {
+      console.log("Battery:", level, "%");
+    });
+
+    session.device.state.modelName.onChange((model) => {
+      console.log("Model:", model);
+    });
+
+    session.device.state.wifiSsid.onChange((ssid) => {
+      console.log("WiFi SSID changed to:", ssid);
+    });
+
+    // console.log(session.device.state.wifiConnected);
+
+
+    // Test updateFromMessage (internal - simulated)
+    // session.device.state.updateFromMessage({
+    //   wifiConnected: true,
+    //   wifiSsid: "MyNetwork",
+    //   batteryLevel: 85,
+    // });
+    // Initialize WiFi state
+    session.glassesSupportsWifi = null;
+    session.glassesWifiConnected = null;
+    session.glassesWifiSsid = null;
+
+    // Check capabilities to see if glasses support WiFi
+    if (session.capabilities) {
+      session.glassesSupportsWifi = session.capabilities.hasWifi === true;
+      console.log(
+        `📶 [${userId}] Glasses WiFi support: ${session.glassesSupportsWifi}`
+      );
+    }
 
     session.subscribe(StreamType.MANAGED_STREAM_STATUS);
     session.subscribe(StreamType.RTMP_STREAM_STATUS);
+    session.subscribe(StreamType.GLASSES_CONNECTION_STATE);
+
+    // Glasses connection state updates (includes WiFi status) - register IMMEDIATELY after subscription
+    const connectionStateUnsubscribe = session.onGlassesConnectionState(
+      (state: any) => {
+        try {
+          console.log(`📡 [${userId}] Glasses connection state update:`, state);
+          // Update WiFi status if available
+          if (state?.wifi) {
+            session.glassesWifiConnected = state.wifi.connected === true;
+            session.glassesWifiSsid = state.wifi.ssid || null;
+            console.log(
+              `📶 [${userId}] WiFi status - Connected: ${session.glassesWifiConnected}, SSID: ${session.glassesWifiSsid}`
+            );
+          }
+          // Broadcast updated status to UI
+          broadcastStreamStatus(userId, formatStreamStatus(session));
+        } catch (error) {
+          console.error(
+            `[${userId}] Error processing connection state:`,
+            error
+          );
+        }
+      }
+    );
 
     // Check for existing streams and update UI accordingly
     try {
@@ -250,14 +318,20 @@ class StreamerApp extends AppServer {
           if (info && typeof info === "object" && info.permanent === true) {
             // Clear stream start times for all platforms for this user
             try {
-              const StreamConfig = (await import('./model/StreamConfig')).default;
+              const StreamConfig = (await import("./model/StreamConfig"))
+                .default;
               await StreamConfig.updateMany(
                 { userId },
                 { streamStartTime: null }
               );
-              console.log(`[onDisconnected] Cleared stream start times for user: ${userId}`);
+              console.log(
+                `[onDisconnected] Cleared stream start times for user: ${userId}`
+              );
             } catch (dbError) {
-              console.error('[onDisconnected] Failed to clear stream start times:', dbError);
+              console.error(
+                "[onDisconnected] Failed to clear stream start times:",
+                dbError
+              );
             }
 
             this.userSessionsMap.delete(userId);
@@ -274,6 +348,7 @@ class StreamerApp extends AppServer {
       statusUnsubscribe();
       rtmpStatusUnsubscribe();
       batteryUnsubscribe();
+      connectionStateUnsubscribe();
       disconnectedUnsubscribe();
     });
 
@@ -314,14 +389,11 @@ class StreamerApp extends AppServer {
 
       // Clear stream start times for all platforms for this user
       try {
-        const StreamConfig = (await import('./model/StreamConfig')).default;
-        await StreamConfig.updateMany(
-          { userId },
-          { streamStartTime: null }
-        );
+        const StreamConfig = (await import("./model/StreamConfig")).default;
+        await StreamConfig.updateMany({ userId }, { streamStartTime: null });
         console.log(`[onStop] Cleared stream start times for user: ${userId}`);
       } catch (dbError) {
-        console.error('[onStop] Failed to clear stream start times:', dbError);
+        console.error("[onStop] Failed to clear stream start times:", dbError);
       }
 
       // Ensure base cleanup (disconnects and clears SDK's active session maps)
