@@ -5,6 +5,7 @@ import { LogEntry } from "../types";
 import EditStreamKeyDialog from "../components/EditStreamKeyDialog";
 import DeleteStreamDialog from "../components/DeleteStreamDialog";
 import { showSuccessToast, showErrorToast } from "../utils/toast";
+import { getJson, postJson } from "../utils";
 
 interface StreamPlatformHubProps {
   platformName?: string;
@@ -26,6 +27,7 @@ interface StreamPlatformHubProps {
   showPreview?: boolean;
   streamStartTime?: number;
   platformId?: string;
+  userId?: string;
 }
 
 function StreamPlatformHub({
@@ -48,6 +50,7 @@ function StreamPlatformHub({
   showPreview = false,
   streamStartTime,
   platformId,
+  userId,
 }: StreamPlatformHubProps) {
   const [duration, setDuration] = useState(0);
   const [logsExpanded, setLogsExpanded] = useState(false);
@@ -237,6 +240,36 @@ function StreamPlatformHub({
         // The buttonState will change to 'idle' when status becomes 'offline'
         // User can then click again to start
         return;
+      }
+
+      // Check WiFi status before starting stream
+      if (userId) {
+        console.log('[StreamPlatformHub] Checking WiFi status before starting stream...');
+        const glassStateResponse = await getJson('/api/glass-state', userId);
+
+        if (glassStateResponse && glassStateResponse.glassState) {
+          const { wifiConnected } = glassStateResponse.glassState;
+          console.log('[StreamPlatformHub] WiFi connected:', wifiConnected);
+
+          if (!wifiConnected) {
+            // WiFi is not connected, request WiFi setup
+            console.log('[StreamPlatformHub] WiFi not connected, requesting WiFi setup...');
+            showErrorToast('WiFi not connected. Please connect your glasses to WiFi first.');
+
+            const wifiSetupResponse = await postJson('/api/request-wifi-setup', {}, userId);
+
+            if (wifiSetupResponse && wifiSetupResponse.success) {
+              console.log('[StreamPlatformHub] WiFi setup request sent successfully');
+            } else {
+              console.error('[StreamPlatformHub] Failed to request WiFi setup:', wifiSetupResponse);
+            }
+
+            // Don't start the stream
+            return;
+          }
+        } else {
+          console.warn('[StreamPlatformHub] Could not fetch glass state, proceeding with stream start...');
+        }
       }
 
       setButtonState('starting');

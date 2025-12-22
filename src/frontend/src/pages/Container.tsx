@@ -848,6 +848,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
               previewUrl={status.previewUrl ?? null}
               showPreview={showPreview}
               streamStartTime={selectedConnection.streamStartTime}
+              userId={userId ?? undefined}
             />
           );
         }

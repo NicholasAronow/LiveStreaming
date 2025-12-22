@@ -35,6 +35,42 @@ export function isStreamingStatus(status?: string): boolean {
   );
 }
 
+export async function getJson(url: string, userId?: string) {
+  try {
+    const fullUrl = url.startsWith('http') ? url : `${BACKEND_URL}${url}`;
+    console.log('getJson:', fullUrl, 'userId:', userId);
+
+    const headers: Record<string, string> = {};
+
+    // Add X-User-Id header if userId is provided
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+
+    const response = await fetch(fullUrl, {
+      method: 'GET',
+      headers,
+      credentials: 'include',
+    });
+
+    const data = await response.json().catch((err) => {
+      console.error('Failed to parse JSON response:', err);
+      return { ok: response.ok };
+    });
+
+    console.log('getJson response:', response.status, data);
+
+    if (!response.ok && data.ok === undefined) {
+      data.ok = false;
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('getJson error:', error);
+    return { ok: false, error: error.message };
+  }
+}
+
 export async function postJson(url: string, body?: unknown, userId?: string) {
   try {
     // Convert relative URLs to absolute URLs using BACKEND_URL

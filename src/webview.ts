@@ -212,6 +212,59 @@ export function setupExpressRoutes(
     });
   });
 
+  // API: Request WiFi setup for a user
+  app.post('/api/request-wifi-setup', async (req: any, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Get the user object
+    const user = getUser ? getUser(userId) : undefined;
+
+    if (!user) {
+      res.status(404).json({
+        error: 'User not found or not connected',
+        userId
+      });
+      return;
+    }
+
+    // Get the session
+    const session = user.getUserSession();
+
+    if (!session) {
+      res.status(404).json({
+        error: 'No active session for user',
+        userId
+      });
+      return;
+    }
+
+    try {
+      // Get custom message from request body, or use default
+      const message = req.body?.message || 'Streaming requires your glasses to be connected to WiFi';
+
+      // Request WiFi setup
+      await session.requestWifiSetup(message);
+
+      res.status(200).json({
+        success: true,
+        userId,
+        message: 'WiFi setup request sent',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`[${userId}] Error requesting WiFi setup:`, error);
+      res.status(500).json({
+        error: 'Failed to request WiFi setup',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // API: Start managed stream ("Stream to here")
   app.post('/api/stream/managed/start', async (req: AuthenticatedRequest, res: any) => {
     try {
