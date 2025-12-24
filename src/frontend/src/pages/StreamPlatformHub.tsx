@@ -59,7 +59,6 @@ function StreamPlatformHub({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [countdown, setCountdown] = useState(20); // 20 second countdown before showing stream
   const [showCountdown, setShowCountdown] = useState(false); // Control countdown visibility
-  const [countdownCompleted, setCountdownCompleted] = useState(false); // Track if countdown has been shown
 
   // Local button state - only changes on user action or final stream states
   const [buttonState, setButtonState] = useState<'idle' | 'starting' | 'live' | 'stopping'>('idle');
@@ -160,38 +159,37 @@ function StreamPlatformHub({
       const elapsedSeconds = Math.floor((Date.now() - streamStartTime) / 1000);
 
       // Only show countdown if stream has been running for less than 20 seconds
-      if (elapsedSeconds < 20 && !countdownCompleted) {
+      if (elapsedSeconds < 20) {
         const remainingCountdown = 20 - elapsedSeconds;
         setShowCountdown(true);
         setCountdown(remainingCountdown);
 
         countdownInterval = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(countdownInterval);
-              setShowCountdown(false); // Hide countdown and reveal stream
-              setCountdownCompleted(true); // Mark countdown as completed
-              return 0;
-            }
-            return prev - 1;
-          });
+          const currentElapsed = Math.floor((Date.now() - streamStartTime) / 1000);
+          const remaining = 20 - currentElapsed;
+
+          if (remaining <= 0) {
+            clearInterval(countdownInterval);
+            setShowCountdown(false); // Hide countdown and reveal stream
+            setCountdown(0);
+          } else {
+            setCountdown(remaining);
+          }
         }, 1000);
       } else {
         // Stream has been running for more than 20 seconds, skip countdown
         setShowCountdown(false);
-        setCountdownCompleted(true);
       }
     } else if (!isStreaming) {
       // Reset when stream stops
       setShowCountdown(false);
       setCountdown(20);
-      setCountdownCompleted(false);
     }
 
     return () => {
       if (countdownInterval) clearInterval(countdownInterval);
     };
-  }, [isStreaming, streamStartTime, countdownCompleted]);
+  }, [isStreaming, streamStartTime]);
 
   // Refresh iframe preview every 30 seconds to prevent pausing
   useEffect(() => {
@@ -254,7 +252,7 @@ function StreamPlatformHub({
           if (!wifiConnected) {
             // WiFi is not connected, request WiFi setup
             console.log('[StreamPlatformHub] WiFi not connected, requesting WiFi setup...');
-            showErrorToast('WiFi not connected. Please connect your glasses to WiFi first.');
+            // showErrorToast('WiFi not connected. Please connect your glasses to WiFi first.');
 
             const wifiSetupResponse = await postJson('/api/request-wifi-setup', {}, userId);
 

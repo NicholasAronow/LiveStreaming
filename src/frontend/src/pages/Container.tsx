@@ -32,6 +32,18 @@ function Container({ userId: userIdProp }: ContainerProps) {
   const { userId: authUserId } = useMentraAuth();
   const userId = userIdProp || authUserId;
   const [showSplash, setShowSplash] = useState(false);
+
+  // Safety: Force hide splash after 3 seconds max
+  useEffect(() => {
+    if (showSplash) {
+      const safetyTimer = setTimeout(() => {
+        console.log('[Container] Safety timeout: forcing splash to hide');
+        setShowSplash(false);
+      }, 1000); // Force hide after 3 seconds
+
+      return () => clearTimeout(safetyTimer);
+    }
+  }, [showSplash]);
   const [activeTab, setActiveTab] = useState("new");
   const [showAddedKeyPage, setShowAddedKeyPage] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<{
@@ -66,22 +78,36 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
   // Check if splash should be shown based on 20-minute interval (using useEffect like Translation app)
   useEffect(() => {
-    const SPLASH_INTERVAL = 20 * 60 * 1000; // 20 minutes in milliseconds
+    const SPLASH_INTERVAL = 1000; // 20 minutes in milliseconds
     const SPLASH_DURATION = 1500; // 1.5 seconds
     const lastSplashTime = localStorage.getItem('lastSplashShown');
     const currentTime = Date.now();
 
+    console.log('[Container] Splash check:', {
+      lastSplashTime,
+      currentTime,
+      elapsed: lastSplashTime ? currentTime - parseInt(lastSplashTime) : 'N/A',
+      shouldShow: !lastSplashTime || currentTime - parseInt(lastSplashTime) >= SPLASH_INTERVAL
+    });
+
     if (!lastSplashTime || currentTime - parseInt(lastSplashTime) >= SPLASH_INTERVAL) {
       // Show splash screen
+      console.log('[Container] Showing splash screen');
       setShowSplash(true);
       localStorage.setItem('lastSplashShown', currentTime.toString());
 
       // Hide splash after 1.5 seconds
       const timer = setTimeout(() => {
+        console.log('[Container] Hiding splash screen (normal timeout)');
         setShowSplash(false);
       }, SPLASH_DURATION);
 
-      return () => clearTimeout(timer);
+      return () => {
+        console.log('[Container] Cleaning up splash timer');
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('[Container] Skipping splash screen (shown recently)');
     }
   }, []);
 
@@ -922,7 +948,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 1 }}
+            transition={{ duration: 0.5 }}
             className="fixed inset-0 w-full h-full z-[9999]"
           >
             <Splash />

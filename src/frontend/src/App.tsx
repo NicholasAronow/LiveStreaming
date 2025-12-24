@@ -44,7 +44,9 @@ function App() {
   }
 
   // Handle unauthenticated state
-  if (!isAuthenticated || !userId) {
+  // if (!isAuthenticated || !userId) {
+  if (false) {
+
     return (
       <div className="mobile-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -73,7 +75,9 @@ function App() {
         // Limit number of toasts shown at once
         reverseOrder={false}
       />
-      <AuthenticatedApp userId={userId || ""} />
+      {/* <AuthenticatedApp userId={userId || ""} /> */}
+      <AuthenticatedApp userId={"aryan.mentra.dev.public@gmail.com"} />
+
     </>
   );
 }
