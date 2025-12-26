@@ -1,8 +1,7 @@
 import { ToolCall, AppServer, AppSession, StreamType } from "@mentra/sdk";
 import path from "path";
-import { setupExpressRoutes } from "./webview";
+import { setupExpressRoutes, broadcastStreamStatus, formatStreamStatus } from "./setup";
 import { handleToolCall } from "./tools";
-import { broadcastStreamStatus, formatStreamStatus } from "./webview";
 import { connectDB } from "./db";
 import { User } from "../shared/class/User";
 

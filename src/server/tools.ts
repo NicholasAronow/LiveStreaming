@@ -1,5 +1,5 @@
 import { ToolCall, AppSession } from '@mentra/sdk';
-import { broadcastStreamStatus, formatStreamStatus } from './webview';
+import { broadcastStreamStatus, formatStreamStatus } from './setup';
 
 /**
  * Handle a tool call
