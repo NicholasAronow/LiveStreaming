@@ -9,15 +9,23 @@ import path from 'path';
 export function registerStaticRoutes(app: Application): void {
   // Serve static files from the built frontend (in production)
   if (process.env.NODE_ENV === 'production') {
-    const staticPath = path.join(__dirname, '../../dist/frontend');
-    app.use(express.static(staticPath));
+    // Use absolute path from process.cwd() for Docker compatibility
+    const staticPath = path.join(process.cwd(), 'dist/frontend');
+    const indexPath = path.join(process.cwd(), 'dist/frontend/index.html');
 
-    // MentraOS expects /webview endpoint - serve React app
-    app.get('/webview', (req: any, res: any) => {
-      res.sendFile(path.join(__dirname, '../../dist/frontend/index.html'));
+    console.log('📁 Static files path:', staticPath);
+    console.log('📄 Index.html path:', indexPath);
+
+    // MentraOS expects /webview endpoint - MUST be registered before catch-all
+    app.get('/webview', (_req: any, res: any) => {
+      console.log('🎯 Serving /webview request');
+      res.sendFile(indexPath);
     });
 
-    // Catch-all route for React app - must be registered after all API routes
+    // Serve static assets (JS, CSS, images)
+    app.use(express.static(staticPath));
+
+    // Catch-all route for React app - must be registered LAST
     app.get('*', (req: any, res: any, next: any) => {
       // Skip API routes and specific backend routes
       if (req.path.startsWith('/api') ||
@@ -27,11 +35,12 @@ export function registerStaticRoutes(app: Application): void {
           req.path.startsWith('/webhook')) {
         return next();
       }
-      res.sendFile(path.join(__dirname, '../../dist/frontend/index.html'));
+      console.log('🔀 Catch-all serving:', req.path);
+      res.sendFile(indexPath);
     });
   } else {
     // In development, redirect /webview to Vite dev server
-    app.get('/webview', (req: any, res: any) => {
+    app.get('/webview', (_req: any, res: any) => {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       res.redirect(frontendUrl);
     });
