@@ -4,7 +4,7 @@ import './streamSession'; // Import to extend AppSession type
 import express, { Response } from 'express';
 import path from 'path';
 import cors from 'cors';
-import StreamConfig from './model/StreamConfig';
+import StreamConfig from '../shared/model/StreamConfig';
 
 /**
  * Helper function to get userId from request
@@ -50,49 +50,6 @@ export function setupExpressRoutes(
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
   }));
-
-  // Set up EJS as the view engine
-  app.set('view engine', 'ejs');
-  app.engine('ejs', require('ejs').__express);
-  app.set('views', path.join(__dirname, 'views'));
-
-  // Register a route for handling webview requests (EJS version)
-  app.get('/webview', (req: AuthenticatedRequest, res: any) => {
-    if (req.authUserId) {
-      // Render the webview template
-      res.render('webview', {
-        userId: req.authUserId,
-        hasActiveSession: req.activeSession !== null,
-        streamType: req.activeSession?.streamType,
-        streamStatus: req.activeSession?.streamStatus,
-        hlsUrl: req.activeSession?.hlsUrl,
-        dashUrl: req.activeSession?.dashUrl,
-        streamId: req.activeSession?.streamId,
-        directRtmpUrl: req.activeSession?.directRtmpUrl,
-        mangedRtmpRestreamUrls: req.activeSession?.mangedRtmpRestreamUrls,
-        previewUrl: req.activeSession?.previewUrl,
-        error: req.activeSession?.error,
-        // Pass saved configuration
-        streamPlatform: req.activeSession?.streamPlatform ?? 'here',
-        streamKey: req.activeSession?.streamKey ?? '',
-        customRtmpUrl: req.activeSession?.customRtmpUrl ?? '',
-        useCloudflareManaged: req.activeSession?.useCloudflareManaged ?? false,
-      });
-    } else {
-      res.redirect('/mentra-auth');
-    }
-  });
-
-  // Register a route for handling React webview (new version)
-  // Since frontend runs separately, redirect to frontend URL
-  app.get('/webview-react', (req: AuthenticatedRequest, res: any) => {
-    if (req.authUserId) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(frontendUrl);
-    } else {
-      res.redirect('/mentra-auth');
-    }
-  });
 
   // Server-Sent Events endpoint for real-time stream status updates
   app.get('/stream-status', (req: any, res: any) => {

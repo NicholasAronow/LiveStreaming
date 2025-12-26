@@ -4,7 +4,7 @@ import { setupExpressRoutes } from "./webview";
 import { handleToolCall } from "./tools";
 import { broadcastStreamStatus, formatStreamStatus } from "./webview";
 import { connectDB } from "./db";
-import { User } from "./class/User";
+import { User } from "../shared/class/User";
 
 const PACKAGE_NAME =
   process.env.PACKAGE_NAME ??
@@ -335,7 +335,7 @@ class StreamerApp extends AppServer {
           if (info && typeof info === "object" && info.permanent === true) {
             // Clear stream start times for all platforms for this user
             try {
-              const StreamConfig = (await import("./model/StreamConfig"))
+              const StreamConfig = (await import("../shared/model/StreamConfig"))
                 .default;
               await StreamConfig.updateMany(
                 { userId },
@@ -407,7 +407,7 @@ class StreamerApp extends AppServer {
 
       // Clear stream start times for all platforms for this user
       try {
-        const StreamConfig = (await import("./model/StreamConfig")).default;
+        const StreamConfig = (await import("../shared/model/StreamConfig")).default;
         await StreamConfig.updateMany({ userId }, { streamStartTime: null });
         console.log(`[onStop] Cleared stream start times for user: ${userId}`);
       } catch (dbError) {
@@ -454,7 +454,7 @@ async function gracefulShutdown(signal: string) {
             }
 
             // Clear stream start times from database
-            const StreamConfig = (await import("./model/StreamConfig")).default;
+            const StreamConfig = (await import("../shared/model/StreamConfig")).default;
             await StreamConfig.updateMany({ userId }, { streamStartTime: null });
 
             // Broadcast offline status

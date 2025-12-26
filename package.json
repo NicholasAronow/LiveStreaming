@@ -1,11 +1,11 @@
 {
   "name": "mentraos-streamer-app",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/server/index.js",
   "scripts": {
-    "start": "bun src/index.ts",
+    "start": "bun src/server/index.ts",
     "dev": "concurrently \"bun run dev:backend\" \"bun run dev:frontend\"",
-    "dev:backend": "bun --watch src/index.ts",
+    "dev:backend": "bun --watch src/server/index.ts",
     "dev:frontend": "cd src/frontend && bunx --bun vite",
     "build:frontend": "cd src/frontend && bunx --bun vite build",
     "build:frontend:prod": "cd src/frontend && bun install --production && bunx --bun vite build",
@@ -17,7 +17,6 @@
   "dependencies": {
     "@mentra/sdk": "^2.1.21",
     "cors": "^2.8.5",
-    "ejs": "^3.1.10",
     "express": "^4.21.2",
     "mongoose": "^9.0.0",
     "ws": "^8.18.1"
