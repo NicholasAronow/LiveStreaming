@@ -61,21 +61,23 @@ export async function attemptStreamRestart(
 
   const sess = session as any;
 
-  // Check if we still have restream config saved
-  if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
-    console.log(`[${userId}] Auto-restarting stream with saved configuration...`);
-    try {
+  try {
+    // Check if we have restream config
+    if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
+      console.log(`[${userId}] Auto-restarting stream with restream configuration...`);
       const options = {
         restreamDestinations: sess.restreamDestinations,
       };
       await session.camera.startManagedStream(options);
-      console.log(`✅ [${userId}] Auto-restart initiated successfully`);
-    } catch (restartErr) {
-      console.error(`❌ [${userId}] Failed to auto-restart stream:`, restartErr);
-      sess.error = 'Auto-restart failed: ' + String(restartErr);
-      broadcastStreamStatus(userId, formatStreamStatus(session));
+    } else {
+      // No restream destinations - just restart the basic managed stream
+      console.log(`[${userId}] Auto-restarting basic managed stream (no restream)...`);
+      await session.camera.startManagedStream();
     }
-  } else {
-    console.log(`[${userId}] No restream configuration saved, skipping auto-restart`);
+    console.log(`✅ [${userId}] Auto-restart initiated successfully`);
+  } catch (restartErr) {
+    console.error(`❌ [${userId}] Failed to auto-restart stream:`, restartErr);
+    sess.error = 'Auto-restart failed: ' + String(restartErr);
+    broadcastStreamStatus(userId, formatStreamStatus(session));
   }
 }
