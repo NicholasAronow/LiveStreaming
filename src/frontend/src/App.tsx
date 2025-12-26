@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMentraAuth } from '@mentra/react';
 import { Toaster } from 'react-hot-toast';
 import { StatusBar } from './components/StatusBar';
@@ -11,11 +11,28 @@ import { Platform, LogEntry, StreamConfig as StreamConfigType } from './types';
 import { isStreamingStatus, postJson, formatTimestamp, getRtmpUrl } from './utils';
 import Splash from './pages/Splash';
 import Container from './pages/Container';
+import StreamPreview from './pages/StreamPreview';
 
 const MAX_LOGS = 100;
 
 function App() {
   const { userId, isLoading, error, isAuthenticated } = useMentraAuth();
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  // Listen for URL changes
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  // Check if we're on the preview page
+  if (currentPath === '/main/streampage/preview') {
+    return <StreamPreview />;
+  }
 
   // Handle loading state
   if (isLoading) {

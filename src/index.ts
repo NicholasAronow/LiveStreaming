@@ -208,7 +208,7 @@ class StreamerApp extends AppServer {
 
     const statusUnsubscribe = session.camera.onManagedStreamStatus(
       async (data) => {
-        console.log(data);
+        console.log(`[${userId}] Stream status update:`, JSON.stringify(data, null, 2));
         const sess = session as any;
 
         // Auto-cleanup and auto-restart failed streams
@@ -216,8 +216,13 @@ class StreamerApp extends AppServer {
           data.status?.toLowerCase() === "error" ||
           data.status?.toLowerCase() === "failed"
         ) {
+          console.error(
+            `❌ [${userId}] Stream entered error state: ${data.status}`
+          );
+          console.error(`❌ [${userId}] Error message:`, data.message || 'No message provided');
+          console.error(`❌ [${userId}] Full error data:`, JSON.stringify(data, null, 2));
           console.log(
-            "Stream entered error state, auto-stopping managed stream..."
+            `[${userId}] Auto-stopping managed stream...`
           );
 
           // First broadcast the error status
@@ -229,9 +234,9 @@ class StreamerApp extends AppServer {
           // Then cleanup
           try {
             await session.camera.stopManagedStream();
-            console.log("Auto-stop completed successfully");
+            console.log(`[${userId}] Auto-stop completed successfully`);
           } catch (stopErr) {
-            console.error("Failed to auto-stop errored stream:", stopErr);
+            console.error(`[${userId}] Failed to auto-stop errored stream:`, stopErr);
           }
 
           // Reset session state after stop completes
@@ -247,7 +252,7 @@ class StreamerApp extends AppServer {
           broadcastStreamStatus(userId, formatStreamStatus(session));
 
           // Auto-restart: wait 2 seconds then try to restart the stream
-          console.log("Waiting 2 seconds before auto-restart...");
+          console.log(`[${userId}] Waiting 2 seconds before auto-restart...`);
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
           // Check if we still have restream config saved
@@ -255,21 +260,21 @@ class StreamerApp extends AppServer {
             sess.restreamDestinations &&
             sess.restreamDestinations.length > 0
           ) {
-            console.log("Auto-restarting stream with saved configuration...");
+            console.log(`[${userId}] Auto-restarting stream with saved configuration...`);
             try {
               const options = {
                 restreamDestinations: sess.restreamDestinations,
               };
               await session.camera.startManagedStream(options);
-              console.log("Auto-restart initiated successfully");
+              console.log(`✅ [${userId}] Auto-restart initiated successfully`);
             } catch (restartErr) {
-              console.error("Failed to auto-restart stream:", restartErr);
+              console.error(`❌ [${userId}] Failed to auto-restart stream:`, restartErr);
               sess.error = "Auto-restart failed: " + String(restartErr);
               broadcastStreamStatus(userId, formatStreamStatus(session));
             }
           } else {
             console.log(
-              "No restream configuration saved, skipping auto-restart"
+              `[${userId}] No restream configuration saved, skipping auto-restart`
             );
           }
 
@@ -422,6 +427,76 @@ class StreamerApp extends AppServer {
 
 // Start the server
 const app = new StreamerApp();
+
+// Graceful shutdown handler to stop all streams when server dies
+async function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} received. Stopping all active streams...`);
+
+  try {
+    // Get all active users
+    const userSessionsMap = (app as any).userSessionsMap as Map<string, User>;
+    const stopPromises: Promise<void>[] = [];
+
+    for (const [userId, user] of userSessionsMap.entries()) {
+      const session = user.getUserSession();
+
+      if (session && session.streamType) {
+        console.log(`Stopping stream for user ${userId} (type: ${session.streamType})`);
+
+        const stopPromise = (async () => {
+          try {
+            if (session.streamType === "managed") {
+              await session.camera.stopManagedStream();
+              console.log(`✓ Managed stream stopped for user ${userId}`);
+            } else if (session.streamType === "unmanaged") {
+              await session.camera.stopStream();
+              console.log(`✓ Unmanaged stream stopped for user ${userId}`);
+            }
+
+            // Clear stream start times from database
+            const StreamConfig = (await import("./model/StreamConfig")).default;
+            await StreamConfig.updateMany({ userId }, { streamStartTime: null });
+
+            // Broadcast offline status
+            broadcastStreamStatus(userId, formatStreamStatus(undefined));
+          } catch (error) {
+            console.error(`Failed to stop stream for user ${userId}:`, error);
+          }
+        })();
+
+        stopPromises.push(stopPromise);
+      }
+    }
+
+    // Wait for all streams to stop (with timeout)
+    await Promise.race([
+      Promise.all(stopPromises),
+      new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout
+    ]);
+
+    console.log('All streams stopped. Exiting...');
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+  } finally {
+    process.exit(0);
+  }
+}
+
+// Register signal handlers
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async (error) => {
+  console.error('Uncaught Exception:', error);
+  await gracefulShutdown('UNCAUGHT_EXCEPTION');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  await gracefulShutdown('UNHANDLED_REJECTION');
+});
 
 // Connect to MongoDB and start the server
 connectDB()

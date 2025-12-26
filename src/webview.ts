@@ -265,6 +265,82 @@ export function setupExpressRoutes(
     }
   });
 
+  // API: Check connection health
+  app.get('/api/connection/health', async (req: any, res: any) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+
+      if (!userId) {
+        return res.status(401).json({
+          ok: false,
+          connected: false,
+          error: 'No userId provided'
+        });
+      }
+
+      // Get the active session
+      let activeSession: AppSession | undefined = req.activeSession;
+      if (!activeSession && getUserSession) {
+        activeSession = getUserSession(userId);
+      }
+
+      if (!activeSession) {
+        return res.json({
+          ok: false,
+          connected: false,
+          error: 'No active session - glasses may be disconnected'
+        });
+      }
+
+      // Try to ping the connection with a quick check
+      try {
+        await Promise.race([
+          activeSession.camera.checkExistingStream(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 3000)
+          )
+        ]);
+
+        // Connection is healthy
+        return res.json({
+          ok: true,
+          connected: true,
+          message: 'Connection is healthy'
+        });
+      } catch (healthError: any) {
+        const errorMsg = String(healthError?.message ?? healthError);
+
+        if (errorMsg.includes('WebSocket not connected') || errorMsg.includes('CLOSED')) {
+          return res.json({
+            ok: false,
+            connected: false,
+            error: 'WebSocket disconnected',
+            suggestion: 'Please refresh the page to reconnect'
+          });
+        } else if (errorMsg.includes('timeout')) {
+          return res.json({
+            ok: false,
+            connected: false,
+            error: 'Connection timeout',
+            suggestion: 'Check your glasses WiFi connection'
+          });
+        }
+
+        return res.json({
+          ok: false,
+          connected: false,
+          error: errorMsg
+        });
+      }
+    } catch (err: any) {
+      return res.status(500).json({
+        ok: false,
+        connected: false,
+        error: String(err?.message ?? err)
+      });
+    }
+  });
+
   // API: Start managed stream ("Stream to here")
   app.post('/api/stream/managed/start', async (req: AuthenticatedRequest, res: any) => {
     try {
@@ -299,6 +375,40 @@ export function setupExpressRoutes(
       // Cast to any to access custom properties added to the session
       const session = activeSession as any;
 
+      // Check if session is still connected
+      try {
+        // Test the connection by trying to ping or check a simple state
+        // If this fails with WebSocket error, we know the connection is dead
+        await Promise.race([
+          activeSession.camera.checkExistingStream(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection check timeout')), 5000)
+          )
+        ]);
+        console.log('[/api/stream/managed/start] Connection check passed');
+      } catch (connectionError: any) {
+        const errorMsg = String(connectionError?.message ?? connectionError);
+        console.error('[/api/stream/managed/start] Connection check failed:', errorMsg);
+
+        // Check if this is a WebSocket disconnection error
+        if (errorMsg.includes('WebSocket not connected') || errorMsg.includes('CLOSED')) {
+          console.error(`❌ [${userId}] WebSocket Error: Connection to glasses is closed`);
+          return res.status(400).json({
+            ok: false,
+            error: 'Connection to your glasses was lost. Please refresh the page to reconnect, then try again.'
+          });
+        } else if (errorMsg.includes('timeout')) {
+          console.error(`❌ [${userId}] Connection timeout`);
+          return res.status(408).json({
+            ok: false,
+            error: 'Connection to your glasses timed out. Please check your WiFi connection and try again.'
+          });
+        }
+
+        // For other errors, log and continue
+        console.log('[/api/stream/managed/start] Continuing despite connection check error');
+      }
+
       // Check if there's an existing stream and stop it first
       try {
         const existingStreamInfo = await activeSession.camera.checkExistingStream();
@@ -317,9 +427,20 @@ export function setupExpressRoutes(
 
           console.log('[/api/stream/managed/start] Existing stream stopped successfully');
         }
-      } catch (checkError) {
+      } catch (checkError: any) {
+        const errorMsg = String(checkError?.message ?? checkError);
         console.error('[/api/stream/managed/start] Error checking/stopping existing stream:', checkError);
-        // Continue anyway - the startManagedStream will handle it
+
+        // Check if this is a WebSocket disconnection error
+        if (errorMsg.includes('WebSocket not connected') || errorMsg.includes('CLOSED')) {
+          console.error(`❌ [${userId}] WebSocket Error: Connection to glasses is closed`);
+          return res.status(400).json({
+            ok: false,
+            error: 'Connection to your glasses was lost. Please ensure your glasses are connected to WiFi and try again.'
+          });
+        }
+
+        // For other errors, continue anyway - the startManagedStream will handle it
       }
 
       // Save configuration
@@ -413,6 +534,18 @@ export function setupExpressRoutes(
           res.status(400).json({
             ok: false,
             error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
+          });
+        } else if (streamErrorMessage.includes('WebSocket not connected') || streamErrorMessage.includes('CLOSED')) {
+          console.error(`❌ [${userId}] WebSocket Error: Connection to glasses is closed during stream start`);
+          res.status(400).json({
+            ok: false,
+            error: 'Connection to your glasses was lost while starting the stream. Please ensure your glasses are connected to WiFi and try again.'
+          });
+        } else if (streamErrorMessage.includes('Already streaming')) {
+          console.error(`❌ [${userId}] Stream Conflict: A stream is already active`);
+          res.status(400).json({
+            ok: false,
+            error: 'A stream is already active. Please stop the current stream first, or wait a moment and try again.'
           });
         } else {
           res.status(400).json({ ok: false, error: streamErrorMessage });
@@ -819,6 +952,12 @@ export function setupExpressRoutes(
         return next();
       }
       res.sendFile(path.join(__dirname, '../dist/frontend/index.html'));
+    });
+  } else {
+    // In development, also handle the preview route
+    app.get('/main/streampage/preview', (req: any, res: any) => {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/main/streampage/preview${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`);
     });
   }
 }

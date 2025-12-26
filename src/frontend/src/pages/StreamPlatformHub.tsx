@@ -57,7 +57,7 @@ function StreamPlatformHub({
   const [iframeKey, setIframeKey] = useState(0);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [countdown, setCountdown] = useState(20); // 20 second countdown before showing stream
+  const [countdown, setCountdown] = useState(30); // 30 second countdown before showing stream
   const [showCountdown, setShowCountdown] = useState(false); // Control countdown visibility
 
   // Local button state - only changes on user action or final stream states
@@ -78,7 +78,7 @@ function StreamPlatformHub({
   }, [streamStatus]);
 
   // Update duration when streaming - calculate from database start time
-  // Only start counting after the 20-second countdown finishes
+  // Only start counting after the 30-second countdown finishes
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const status = streamStatus.toLowerCase();
@@ -103,8 +103,8 @@ function StreamPlatformHub({
     // Only count duration after countdown finishes
     if (isActuallyStreaming && !showCountdown) {
       if (streamStartTime) {
-        // Calculate elapsed time, but subtract the 20-second countdown period
-        const elapsed = Math.floor((Date.now() - streamStartTime) / 1000) - 20;
+        // Calculate elapsed time, but subtract the 30-second countdown period
+        const elapsed = Math.floor((Date.now() - streamStartTime) / 1000) - 30;
         // Safety check: if elapsed is negative, keep at 0
         if (elapsed < 0) {
           console.log(
@@ -118,10 +118,10 @@ function StreamPlatformHub({
           );
           setDuration(elapsed);
 
-          // Update duration every second based on start time (minus 20 seconds)
+          // Update duration every second based on start time (minus 30 seconds)
           interval = setInterval(() => {
             const currentElapsed =
-              Math.floor((Date.now() - streamStartTime) / 1000) - 20;
+              Math.floor((Date.now() - streamStartTime) / 1000) - 30;
             if (currentElapsed >= 0) {
               setDuration(currentElapsed);
             } else {
@@ -150,23 +150,23 @@ function StreamPlatformHub({
     };
   }, [isStreaming, streamStatus, streamStartTime, showCountdown]);
 
-  // 20-second countdown timer when streaming starts
-  // Only show countdown if stream just started (elapsed time < 20 seconds)
+  // 30-second countdown timer when streaming starts
+  // Only show countdown if stream just started (elapsed time < 30 seconds)
   useEffect(() => {
     let countdownInterval: NodeJS.Timeout;
 
     if (isStreaming && streamStartTime) {
       const elapsedSeconds = Math.floor((Date.now() - streamStartTime) / 1000);
 
-      // Only show countdown if stream has been running for less than 20 seconds
-      if (elapsedSeconds < 20) {
-        const remainingCountdown = 20 - elapsedSeconds;
+      // Only show countdown if stream has been running for less than 30 seconds
+      if (elapsedSeconds < 30) {
+        const remainingCountdown = 30 - elapsedSeconds;
         setShowCountdown(true);
         setCountdown(remainingCountdown);
 
         countdownInterval = setInterval(() => {
           const currentElapsed = Math.floor((Date.now() - streamStartTime) / 1000);
-          const remaining = 20 - currentElapsed;
+          const remaining = 30 - currentElapsed;
 
           if (remaining <= 0) {
             clearInterval(countdownInterval);
@@ -177,13 +177,13 @@ function StreamPlatformHub({
           }
         }, 1000);
       } else {
-        // Stream has been running for more than 20 seconds, skip countdown
+        // Stream has been running for more than 30 seconds, skip countdown
         setShowCountdown(false);
       }
     } else if (!isStreaming) {
       // Reset when stream stops
       setShowCountdown(false);
-      setCountdown(20);
+      setCountdown(30);
     }
 
     return () => {
@@ -191,14 +191,15 @@ function StreamPlatformHub({
     };
   }, [isStreaming, streamStartTime]);
 
-  // Refresh iframe preview every 30 seconds to prevent pausing
+  // Refresh iframe preview - balanced approach to handle hangs without causing loops
   useEffect(() => {
     if (!showPreview || !previewUrl) return;
 
+    // Use 2-minute interval to minimize flickering while still recovering from hangs
     const refreshInterval = setInterval(() => {
-      console.log("Refreshing preview iframe to prevent pause");
+      console.log("Periodic refresh to recover from potential stream hang");
       setIframeKey((prev) => prev + 1);
-    }, 30000); // Refresh every 30 seconds
+    }, 120000); // 120 seconds (2 minutes) - less aggressive to avoid flickering
 
     return () => clearInterval(refreshInterval);
   }, [showPreview, previewUrl]);
@@ -316,16 +317,21 @@ function StreamPlatformHub({
   // Check if this is the "streamer" platform (Stream Here)
   const isStreamerPlatform = platformId === "streamer" || platformName === "Stream Here";
 
-  // Handle share button click - copy preview URL to clipboard
+  // Handle share button click - generate and copy shareable preview link
   const handleShareClick = async () => {
     if (!previewUrl) return;
 
     try {
-      await navigator.clipboard.writeText(previewUrl);
-      showSuccessToast("Stream URL copied to clipboard!");
+      // Generate the shareable preview link
+      const encodedUrl = encodeURIComponent(previewUrl);
+      const baseUrl = window.location.origin; // e.g., https://webview.ngrok.dev
+      const shareableLink = `${baseUrl}/main/streampage/preview?url=${encodedUrl}`;
+
+      await navigator.clipboard.writeText(shareableLink);
+      showSuccessToast("Shareable link copied to clipboard!");
     } catch (error) {
-      console.error("Failed to copy URL to clipboard:", error);
-      showErrorToast("Failed to copy URL to clipboard");
+      console.error("Failed to copy link to clipboard:", error);
+      showErrorToast("Failed to copy link to clipboard");
     }
   };
 
@@ -524,7 +530,7 @@ function StreamPlatformHub({
                       ? "text-[var(--secondary-background)] hover:bg-gray-50"
                       : "text-gray-400 cursor-not-allowed opacity-50"
                   }`}
-                  title={previewUrl ? "Copy stream URL" : "Waiting for stream URL..."}
+                  title={previewUrl ? "Copy shareable preview link" : "Waiting for stream URL..."}
                 >
                   <svg
                     width="16"
