@@ -35,7 +35,7 @@ const StreamConfigSchema: Schema = new Schema({
     type: String,
     required: true
   },
-  platformLogoIcon: {
+  platformLogoIcon: { 
     type: String,
     required: true
   },
