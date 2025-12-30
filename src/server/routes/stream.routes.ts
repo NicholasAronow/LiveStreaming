@@ -22,14 +22,33 @@ import { resetRetryState } from '../services/stream-recovery.service';
  * Registers stream control routes
  * @param app The Express application
  * @param getUserSession Function to get a user's active session
+ * @param getAllUsers Function to list all users in the session map (for debugging)
  */
 export function registerStreamRoutes(
   app: Application,
-  getUserSession?: (userId: string) => AppSession | undefined
+  getUserSession?: (userId: string) => AppSession | undefined,
+  getAllUsers?: () => Array<{ userId: string; hasSession: boolean }>
 ): void {
   // API: Start managed stream ("Stream to here")
   app.post('/api/stream/managed/start', async (req: AuthenticatedRequest, res: any) => {
     const userId = getUserIdFromRequest(req);
+
+    // Debug: Log all users currently in the session map
+    console.log('='.repeat(60));
+    console.log('[/api/stream/managed/start] 🎬 GO LIVE BUTTON PRESSED');
+    console.log('[/api/stream/managed/start] userId from request:', userId);
+    if (getAllUsers) {
+      const allUsers = getAllUsers();
+      console.log('[/api/stream/managed/start] 📋 ALL USERS IN SESSION MAP:');
+      if (allUsers.length === 0) {
+        console.log('[/api/stream/managed/start]   (empty - no users)');
+      } else {
+        allUsers.forEach((u, i) => {
+          console.log(`[/api/stream/managed/start]   ${i + 1}. "${u.userId}" - session: ${u.hasSession ? '✅ YES' : '❌ NO'}`);
+        });
+      }
+    }
+    console.log('='.repeat(60));
 
     if (!userId) {
       console.log('[/api/stream/managed/start] No userId - returning 401');

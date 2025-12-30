@@ -2,6 +2,8 @@ import type { AppSession } from '@mentra/sdk';
 import { broadcastStreamStatus, formatStreamStatus } from '../setup';
 import { handleStreamError, attemptStreamRestart } from '../services/stream-recovery.service';
 import { clearStreamStartTimes } from '../services/cleanup.service';
+import { clearStreamState } from '../services/stream.service';
+import { hasActiveSseConnection } from '../services/sse.service';
 import type { User } from '../../shared/class/User';
 
 /**
@@ -114,8 +116,9 @@ export function setupStreamEventHandlers(
       if (info && typeof info === 'object' && info.permanent === true) {
         console.log(`🔌 [${userId}] Permanent disconnect detected`);
 
-        // Stop any active stream to prevent zombie streams
         const sess = session as any;
+
+        // Stop any active stream to prevent zombie streams
         if (sess.streamType) {
           console.log(`🔌 [${userId}] Stopping active ${sess.streamType} stream due to permanent disconnect...`);
           try {
@@ -134,13 +137,24 @@ export function setupStreamEventHandlers(
         // Clear database records
         await clearStreamStartTimes(userId);
 
-        // Remove from session map
-        userSessionsMap.delete(userId);
+        // Check if frontend is still connected via SSE
+        const frontendConnected = hasActiveSseConnection(userId);
 
-        // Broadcast offline status to any connected clients
-        broadcastStreamStatus(userId, formatStreamStatus(undefined));
+        if (frontendConnected) {
+          // Frontend is still active - keep the session but clear stream state
+          // This allows the user to reconnect their glasses without refreshing
+          console.log(`🔌 [${userId}] Frontend still connected - keeping session alive, clearing stream state`);
+          clearStreamState(sess);
+          // Broadcast updated status (session exists but no active stream)
+          broadcastStreamStatus(userId, formatStreamStatus(session));
+        } else {
+          // No frontend connected - full cleanup
+          console.log(`🔌 [${userId}] No frontend connected - removing session`);
+          userSessionsMap.delete(userId);
+          broadcastStreamStatus(userId, formatStreamStatus(undefined));
+        }
 
-        console.log(`🔌 [${userId}] Session cleanup complete after permanent disconnect`);
+        console.log(`🔌 [${userId}] Disconnect handling complete`);
       }
       // For transient disconnects, allow SDK auto-reconnect without UI flicker
     } catch (error) {

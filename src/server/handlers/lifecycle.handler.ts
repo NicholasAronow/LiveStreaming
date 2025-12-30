@@ -3,11 +3,13 @@ import { stopActiveStream, clearStreamStartTimes, cleanupUserSession } from '../
 import { broadcastStreamStatus, formatStreamStatus } from '../setup';
 import StreamConfig from '../../shared/model/StreamConfig';
 import { releaseAllLocks } from '../services/operation-lock.service';
-import { closeAllSseConnections } from '../services/sse.service';
+import { closeAllSseConnections, hasActiveSseConnection } from '../services/sse.service';
 import { stopOrphanStreamMonitor, startOrphanStreamMonitor } from '../services/orphan-stream-monitor.service';
+import { clearStreamState } from '../services/stream.service';
 
 /**
- * Handles session stop events
+ * Handles session stop events from the SDK
+ * This is called when the SDK determines the session should end
  * @param sessionId The session ID
  * @param userId The user ID
  * @param reason The stop reason
@@ -19,6 +21,8 @@ export async function handleSessionStop(
   reason: string,
   userSessionsMap: Map<string, User>
 ): Promise<void> {
+  console.log(`📴 [${userId}] Session stop received - reason: ${reason}`);
+
   try {
     // Get the user and session before cleanup
     const user = userSessionsMap.get(userId);
@@ -26,16 +30,34 @@ export async function handleSessionStop(
 
     // Stop active streams
     if (session) {
+      console.log(`📴 [${userId}] Stopping active stream before session cleanup...`);
       await stopActiveStream(session);
     }
 
     // Clear database records
     await clearStreamStartTimes(userId);
 
-    // Remove from session map
+    // Check if frontend is still connected
+    const frontendConnected = hasActiveSseConnection(userId);
+
+    if (frontendConnected && user && session) {
+      // Frontend is still active - keep the User in the map but clear the session
+      // This allows the session to be re-established when glasses reconnect
+      console.log(`📴 [${userId}] Frontend still connected - keeping User, clearing session`);
+      clearStreamState(session as any);
+      user.setUserSession(null);  // Clear the session but keep the User
+      // Broadcast that session is no longer available but frontend is connected
+      broadcastStreamStatus(userId, formatStreamStatus(undefined));
+    } else {
+      // No frontend connected - full cleanup
+      console.log(`📴 [${userId}] No frontend connected - removing User from map`);
+      userSessionsMap.delete(userId);
+      broadcastStreamStatus(userId, formatStreamStatus(undefined));
+    }
+  } catch (error) {
+    console.error(`📴 [${userId}] Error during session stop:`, error);
+    // On error, still try to clean up
     userSessionsMap.delete(userId);
-  } finally {
-    // Always broadcast offline status
     broadcastStreamStatus(userId, formatStreamStatus(undefined));
   }
 }

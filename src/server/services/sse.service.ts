@@ -133,3 +133,13 @@ export function getActiveSseConnectionCount(): number {
   }
   return count;
 }
+
+/**
+ * Checks if a specific user has active SSE connections (frontend is connected)
+ * @param userId The user ID
+ * @returns True if the user has at least one active SSE connection
+ */
+export function hasActiveSseConnection(userId: string): boolean {
+  const clients = sseClientsByUser.get(userId);
+  return clients !== undefined && clients.size > 0;
+}

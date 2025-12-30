@@ -16,11 +16,13 @@ export { formatStreamStatus, broadcastStreamStatus } from './services/sse.servic
  * @param server The server instance
  * @param getUserSession Function to get a user's active session by userId
  * @param getUser Function to get a user's User object by userId
+ * @param getAllUsers Function to list all users in the session map (for debugging)
  */
 export function setupExpressRoutes(
   server: AppServer,
   getUserSession?: (userId: string) => AppSession | undefined,
-  getUser?: (userId: string) => any | undefined
+  getUser?: (userId: string) => any | undefined,
+  getAllUsers?: () => Array<{ userId: string; hasSession: boolean }>
 ): void {
   // Get the Express app instance
   const app = server.getExpressApp();
@@ -32,7 +34,7 @@ export function setupExpressRoutes(
   // Register routes
   registerSseRoutes(app, getUserSession);
   registerHealthRoutes(app, getUserSession, getUser);
-  registerStreamRoutes(app, getUserSession);
+  registerStreamRoutes(app, getUserSession, getAllUsers);
   registerConfigRoutes(app);
   registerStaticRoutes(app);
 

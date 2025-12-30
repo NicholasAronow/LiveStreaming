@@ -33,7 +33,12 @@ class StreamerApp extends AppServer {
     setupExpressRoutes(
       this,
       (userId: string) => this.userSessionsMap.get(userId)?.getUserSession() ?? undefined,
-      (userId: string) => this.userSessionsMap.get(userId) ?? undefined
+      (userId: string) => this.userSessionsMap.get(userId) ?? undefined,
+      // Debug: function to list all users in the session map
+      () => Array.from(this.userSessionsMap.entries()).map(([id, user]) => ({
+        userId: id,
+        hasSession: user.getUserSession() !== null
+      }))
     );
 
     // Set up graceful shutdown handlers
@@ -65,11 +70,16 @@ class StreamerApp extends AppServer {
     sessionId: string,
     userId: string
   ): Promise<void> {
+    console.log(`📱 [${userId}] New session received - sessionId: ${sessionId}`);
+
     // Create or get User instance for this userId
     let user = this.userSessionsMap.get(userId);
     if (!user) {
+      console.log(`📱 [${userId}] Creating new User instance`);
       user = new User(userId);
       this.userSessionsMap.set(userId, user);
+    } else {
+      console.log(`📱 [${userId}] Reusing existing User instance, updating session`);
     }
 
     // Set the session in the User instance
