@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   FONTS
+   Red Hat Display font family with all weights
+   ============================================ */
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-LightItalic.ttf') format('truetype');
+  font-weight: 300;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-MediumItalic.ttf') format('truetype');
+  font-weight: 500;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-SemiBoldItalic.ttf') format('truetype');
+  font-weight: 600;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-ExtraBoldItalic.ttf') format('truetype');
+  font-weight: 800;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Red Hat Display';
+  src: url('/fonts/RedHatDisplay-BlackItalic.ttf') format('truetype');
+  font-weight: 900;
+  font-style: italic;
+}
+
+/* ============================================
+   CONSTANT COLORS
+   Paste your color constants here
+   ============================================ */
+:root {
+  /* Example: --primary-color: #3b82f6; */
+  /* Example: --secondary-color: #10b981; */
+  /* Add your color constants below */
+
+  --background: #FFFFFF;
+  --secondary-background: #0A0A0A;
+  --secondary-foreground: #0A0A0A;
+  --foreground: #0A0A0A;
+  --primary-forground: #F5F5F5;
+  --muted-forground: #737373;
+  --destructive: #DC2626;
+  --border: #E5E5E5;
+  --char_T: #00B869;
+
+}
+
+/* Default Font - Apply to all elements */
+* {
+  font-family: 'Red Hat Display', system-ui, -apple-system, sans-serif;
+  letter-spacing: 0;
+}
+
+@layer base {
+  * {
+    @apply m-0 p-0 box-border;
+  }
+
+  html, body {
+    @apply h-full overflow-hidden;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary antialiased;
+  }
+}
+
+@layer utilities {
+  .animate-pulse-custom {
+    animation: pulse-custom 2s infinite;
+  }
+
+  @keyframes pulse-custom {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Custom scrollbar for logs */
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-bg-primary;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-border rounded;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-secondary;
+  }
+}
+
+
