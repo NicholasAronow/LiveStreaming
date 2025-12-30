@@ -6,7 +6,7 @@ build:
   context: .
   dockerfile: ./docker/Dockerfile
 services:
-  - name: streamer-staging
+  - name: streamer-dev
     type: web
     run: bun run start
     port: 80
