@@ -100,3 +100,36 @@ export function unregisterSseClient(userId: string, res: Response): void {
     }
   }
 }
+
+/**
+ * Closes all SSE connections (used during graceful shutdown)
+ * @returns The number of connections closed
+ */
+export function closeAllSseConnections(): number {
+  let count = 0;
+  for (const [userId, clients] of sseClientsByUser.entries()) {
+    for (const res of clients) {
+      try {
+        res.end();
+        count++;
+      } catch (error) {
+        console.error(`[sse.service] Error closing SSE connection for ${userId}:`, error);
+      }
+    }
+  }
+  sseClientsByUser.clear();
+  console.log(`[sse.service] Closed ${count} SSE connections`);
+  return count;
+}
+
+/**
+ * Gets the count of active SSE connections
+ * @returns The total number of active connections
+ */
+export function getActiveSseConnectionCount(): number {
+  let count = 0;
+  for (const clients of sseClientsByUser.values()) {
+    count += clients.size;
+  }
+  return count;
+}

@@ -8,6 +8,7 @@ import {
   writeSseEvent
 } from '../services/sse.service';
 import { SSE_HEARTBEAT_INTERVAL, SSE_STATUS_PING_INTERVAL } from '../utils/constants';
+import { recordClientActivity } from '../services/orphan-stream-monitor.service';
 
 /**
  * Registers Server-Sent Events routes
@@ -57,6 +58,9 @@ export function registerSseRoutes(
     // Track the connection for this user
     registerSseClient(userId, res);
 
+    // Record activity for orphan stream monitoring
+    recordClientActivity(userId);
+
     // Heartbeat to keep proxies from closing the connection
     const heartbeat = setInterval(() => {
       try {
@@ -82,6 +86,8 @@ export function registerSseRoutes(
       clearInterval(heartbeat);
       clearInterval(statusPing);
       unregisterSseClient(userId, res);
+      // Note: Don't clear client activity here - only clear when session ends
+      // Other tabs/windows may still be connected
     });
   });
 }

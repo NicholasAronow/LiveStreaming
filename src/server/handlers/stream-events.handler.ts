@@ -33,8 +33,10 @@ export function setupStreamEventHandlers(
       data.status?.toLowerCase() === 'error' ||
       data.status?.toLowerCase() === 'failed'
     ) {
-      await handleStreamError(session, userId, data);
-      await attemptStreamRestart(session, userId);
+      const shouldRetry = await handleStreamError(session, userId, data);
+      if (shouldRetry) {
+        await attemptStreamRestart(session, userId);
+      }
       return;
     }
 
@@ -106,15 +108,43 @@ export function setupStreamEventHandlers(
   // Disconnect handler
   const disconnectedUnsubscribe = session.events.onDisconnected(async (info: any) => {
     try {
-      // Only broadcast disconnected state if SDK marks it as permanent
+      console.log(`🔌 [${userId}] Disconnect event received:`, JSON.stringify(info, null, 2));
+
+      // Only handle permanent disconnections
       if (info && typeof info === 'object' && info.permanent === true) {
+        console.log(`🔌 [${userId}] Permanent disconnect detected`);
+
+        // Stop any active stream to prevent zombie streams
+        const sess = session as any;
+        if (sess.streamType) {
+          console.log(`🔌 [${userId}] Stopping active ${sess.streamType} stream due to permanent disconnect...`);
+          try {
+            if (sess.streamType === 'managed') {
+              await session.camera.stopManagedStream();
+            } else if (sess.streamType === 'unmanaged') {
+              await session.camera.stopStream();
+            }
+            console.log(`✓ [${userId}] Stream stopped successfully on disconnect`);
+          } catch (stopErr) {
+            // Stream stop may fail if connection is already lost - that's okay
+            console.warn(`[${userId}] Could not stop stream on disconnect (may already be stopped):`, stopErr);
+          }
+        }
+
+        // Clear database records
         await clearStreamStartTimes(userId);
+
+        // Remove from session map
         userSessionsMap.delete(userId);
+
+        // Broadcast offline status to any connected clients
         broadcastStreamStatus(userId, formatStreamStatus(undefined));
+
+        console.log(`🔌 [${userId}] Session cleanup complete after permanent disconnect`);
       }
-      // Otherwise, allow auto-reconnect without UI flicker
-    } catch {
-      // No-op
+      // For transient disconnects, allow SDK auto-reconnect without UI flicker
+    } catch (error) {
+      console.error(`[${userId}] Error handling disconnect:`, error);
     }
   });
   cleanupFunctions.push(disconnectedUnsubscribe);

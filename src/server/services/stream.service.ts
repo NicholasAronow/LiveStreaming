@@ -121,21 +121,36 @@ export async function startManagedStream(
 ): Promise<void> {
   const streamPromise = activeSession.camera.startManagedStream(options);
 
+  // Track cleanup functions
+  const cleanup: { disconnectUnsubscribe?: () => void; timeoutId?: ReturnType<typeof setTimeout> } = {};
+
   // Create a promise that rejects on disconnect
-  let disconnectHandler: (() => void) | null = null;
   const disconnectPromise = new Promise<never>((_, reject) => {
-    disconnectHandler = () => {
+    const handler = () => {
       reject(new Error('Cannot process request - smart glasses must be connected to WiFi for this operation'));
     };
-    activeSession.events.onDisconnected(disconnectHandler);
+    // Store the unsubscribe function returned by onDisconnected
+    cleanup.disconnectUnsubscribe = activeSession.events.onDisconnected(handler);
   });
 
   // Timeout after 45 seconds
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Stream start timeout - request took too long')), 45000)
-  );
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    cleanup.timeoutId = setTimeout(() => reject(new Error('Stream start timeout - request took too long')), 45000);
+  });
 
-  await Promise.race([streamPromise, disconnectPromise, timeoutPromise]);
+  try {
+    await Promise.race([streamPromise, disconnectPromise, timeoutPromise]);
+  } finally {
+    // Always clean up resources
+    if (cleanup.disconnectUnsubscribe) {
+      cleanup.disconnectUnsubscribe();
+      console.log(`[stream.service] Cleaned up disconnect handler for ${userId}`);
+    }
+    if (cleanup.timeoutId) {
+      clearTimeout(cleanup.timeoutId);
+      console.log(`[stream.service] Cleared timeout for ${userId}`);
+    }
+  }
 }
 
 /**
@@ -202,4 +217,5 @@ export function clearStreamState(session: any): void {
   session.streamId = null;
   session.previewUrl = null;
   session.directRtmpUrl = null;
+  session.error = null;
 }

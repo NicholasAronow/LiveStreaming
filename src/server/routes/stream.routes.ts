@@ -15,6 +15,8 @@ import {
 } from '../services/stream.service';
 import { broadcastStreamStatus, formatStreamStatus } from '../services/sse.service';
 import { buildRtmpUrl } from '../utils/platform-urls';
+import { withStreamLock, hasActiveLock } from '../services/operation-lock.service';
+import { resetRetryState } from '../services/stream-recovery.service';
 
 /**
  * Registers stream control routes
@@ -27,106 +29,120 @@ export function registerStreamRoutes(
 ): void {
   // API: Start managed stream ("Stream to here")
   app.post('/api/stream/managed/start', async (req: AuthenticatedRequest, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      console.log('[/api/stream/managed/start] No userId - returning 401');
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Check if an operation is already in progress
+    const activeLock = hasActiveLock(userId);
+    if (activeLock) {
+      console.log(`[/api/stream/managed/start] Operation ${activeLock.operation} already in progress for ${userId}`);
+      res.status(409).json({
+        ok: false,
+        error: `A ${activeLock.operation} operation is already in progress. Please wait for it to complete.`
+      });
+      return;
+    }
+
     try {
-      console.log('[/api/stream/managed/start] Request received');
+      await withStreamLock(userId, 'start', async () => {
+        console.log('[/api/stream/managed/start] Request received');
+        console.log('[/api/stream/managed/start] userId:', userId);
 
-      const userId = getUserIdFromRequest(req);
-      console.log('[/api/stream/managed/start] userId:', userId);
-
-      if (!userId) {
-        console.log('[/api/stream/managed/start] No userId - returning 401');
-        res.status(401).json({ error: 'Unauthorized - no userId' });
-        return;
-      }
-
-      // Get the active session
-      let activeSession: AppSession | undefined = req.activeSession;
-      if (!activeSession && getUserSession) {
-        activeSession = getUserSession(userId);
-        console.log('[/api/stream/managed/start] Looked up session by userId:', activeSession ? 'found' : 'not found');
-      }
-
-      if (!activeSession) {
-        console.log('[/api/stream/managed/start] No active session - returning 401');
-        res.status(401).json({ error: 'Unauthorized - no active session' });
-        return;
-      }
-
-      console.log('[/api/stream/managed/start] Starting managed stream for user:', userId);
-
-      const session = activeSession as any;
-
-      // Validate connection
-      try {
-        await validateConnection(activeSession);
-        console.log('[/api/stream/managed/start] Connection check passed');
-      } catch (connectionError: any) {
-        console.error('[/api/stream/managed/start] Connection check failed:', connectionError.message);
-        return res.status(400).json({
-          ok: false,
-          error: connectionError.message
-        });
-      }
-
-      // Check and stop existing stream
-      try {
-        await stopExistingStreamIfNeeded(activeSession);
-      } catch (stopError: any) {
-        return res.status(400).json({
-          ok: false,
-          error: stopError.message
-        });
-      }
-
-      // Save configuration
-      if (req.body?.platform) session.streamPlatform = req.body.platform;
-      if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
-      if (req.body?.customRtmpUrl !== undefined) session.customRtmpUrl = req.body.customRtmpUrl;
-      if (req.body?.useCloudflareManaged !== undefined) session.useCloudflareManaged = req.body.useCloudflareManaged;
-
-      // Build restream options
-      const options = buildRestreamOptions(session);
-
-      try {
-        await startManagedStream(activeSession, options, userId);
-
-        // Save stream start time to database
-        if (session.streamPlatform && userId) {
-          await saveStreamStartTime(userId, session.streamPlatform);
+        // Get the active session
+        let activeSession: AppSession | undefined = req.activeSession ?? undefined;
+        if (!activeSession && getUserSession) {
+          activeSession = getUserSession(userId);
+          console.log('[/api/stream/managed/start] Looked up session by userId:', activeSession ? 'found' : 'not found');
         }
 
-        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-        res.json({ ok: true });
-      } catch (streamError: any) {
-        const streamErrorMessage = String(streamError?.message ?? streamError);
-        console.error(`[/api/stream/managed/start] Stream start error for ${userId}:`, streamErrorMessage);
-
-        // Handle specific error types
-        if (streamErrorMessage.includes('must be connected to WiFi')) {
-          console.error(`❌ [${userId}] WiFi Error`);
-          res.status(400).json({
-            ok: false,
-            error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
-          });
-        } else if (streamErrorMessage.includes('WebSocket not connected') || streamErrorMessage.includes('CLOSED')) {
-          console.error(`❌ [${userId}] WebSocket Error`);
-          res.status(400).json({
-            ok: false,
-            error: 'Connection to your glasses was lost while starting the stream. Please ensure your glasses are connected to WiFi and try again.'
-          });
-        } else if (streamErrorMessage.includes('Already streaming')) {
-          console.error(`❌ [${userId}] Stream Conflict`);
-          res.status(400).json({
-            ok: false,
-            error: 'A stream is already active. Please stop the current stream first, or wait a moment and try again.'
-          });
-        } else {
-          res.status(400).json({ ok: false, error: streamErrorMessage });
+        if (!activeSession) {
+          console.log('[/api/stream/managed/start] No active session - returning 401');
+          res.status(401).json({ error: 'Unauthorized - no active session' });
+          return;
         }
-      }
+
+        console.log('[/api/stream/managed/start] Starting managed stream for user:', userId);
+
+        const session = activeSession as any;
+
+        // Validate connection
+        try {
+          await validateConnection(activeSession);
+          console.log('[/api/stream/managed/start] Connection check passed');
+        } catch (connectionError: any) {
+          console.error('[/api/stream/managed/start] Connection check failed:', connectionError.message);
+          res.status(400).json({
+            ok: false,
+            error: connectionError.message
+          });
+          return;
+        }
+
+        // Check and stop existing stream
+        try {
+          await stopExistingStreamIfNeeded(activeSession);
+        } catch (stopError: any) {
+          res.status(400).json({
+            ok: false,
+            error: stopError.message
+          });
+          return;
+        }
+
+        // Save configuration
+        if (req.body?.platform) session.streamPlatform = req.body.platform;
+        if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
+        if (req.body?.customRtmpUrl !== undefined) session.customRtmpUrl = req.body.customRtmpUrl;
+        if (req.body?.useCloudflareManaged !== undefined) session.useCloudflareManaged = req.body.useCloudflareManaged;
+
+        // Build restream options
+        const options = buildRestreamOptions(session);
+
+        try {
+          await startManagedStream(activeSession, options, userId);
+
+          // Save stream start time to database
+          if (session.streamPlatform && userId) {
+            await saveStreamStartTime(userId, session.streamPlatform);
+          }
+
+          broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+          res.json({ ok: true });
+        } catch (streamError: any) {
+          const streamErrorMessage = String(streamError?.message ?? streamError);
+          console.error(`[/api/stream/managed/start] Stream start error for ${userId}:`, streamErrorMessage);
+
+          // Handle specific error types
+          if (streamErrorMessage.includes('must be connected to WiFi')) {
+            console.error(`❌ [${userId}] WiFi Error`);
+            res.status(400).json({
+              ok: false,
+              error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
+            });
+          } else if (streamErrorMessage.includes('WebSocket not connected') || streamErrorMessage.includes('CLOSED')) {
+            console.error(`❌ [${userId}] WebSocket Error`);
+            res.status(400).json({
+              ok: false,
+              error: 'Connection to your glasses was lost while starting the stream. Please ensure your glasses are connected to WiFi and try again.'
+            });
+          } else if (streamErrorMessage.includes('Already streaming')) {
+            console.error(`❌ [${userId}] Stream Conflict`);
+            res.status(400).json({
+              ok: false,
+              error: 'A stream is already active. Please stop the current stream first, or wait a moment and try again.'
+            });
+          } else {
+            res.status(400).json({ ok: false, error: streamErrorMessage });
+          }
+        }
+      });
     } catch (err: any) {
       const errorMessage = String(err?.message ?? err);
-      const userId = getUserIdFromRequest(req);
       console.error(`[/api/stream/managed/start] Unexpected error for ${userId}:`, errorMessage);
       res.status(500).json({ ok: false, error: errorMessage });
     }
@@ -134,47 +150,65 @@ export function registerStreamRoutes(
 
   // API: Stop managed stream
   app.post('/api/stream/managed/stop', async (req: any, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      console.log('[/api/stream/managed/stop] No userId - returning 401');
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Check if an operation is already in progress
+    const activeLock = hasActiveLock(userId);
+    if (activeLock) {
+      console.log(`[/api/stream/managed/stop] Operation ${activeLock.operation} already in progress for ${userId}`);
+      res.status(409).json({
+        ok: false,
+        error: `A ${activeLock.operation} operation is already in progress. Please wait for it to complete.`
+      });
+      return;
+    }
+
     try {
-      console.log('[/api/stream/managed/stop] Request received');
+      await withStreamLock(userId, 'stop', async () => {
+        console.log('[/api/stream/managed/stop] Request received');
+        console.log('[/api/stream/managed/stop] userId:', userId);
 
-      const userId = getUserIdFromRequest(req);
-      console.log('[/api/stream/managed/stop] userId:', userId);
+        // Get the active session
+        let activeSession: AppSession | undefined = req.activeSession ?? undefined;
+        if (!activeSession && getUserSession) {
+          activeSession = getUserSession(userId);
+          console.log('[/api/stream/managed/stop] Looked up session by userId:', activeSession ? 'found' : 'not found');
+        }
 
-      if (!userId) {
-        console.log('[/api/stream/managed/stop] No userId - returning 401');
-        res.status(401).json({ error: 'Unauthorized - no userId' });
-        return;
-      }
+        if (!activeSession) {
+          console.log('[/api/stream/managed/stop] No active session - returning 401');
+          res.status(401).json({ error: 'Unauthorized - no active session' });
+          return;
+        }
 
-      // Get the active session
-      let activeSession: AppSession | undefined = req.activeSession;
-      if (!activeSession && getUserSession) {
-        activeSession = getUserSession(userId);
-        console.log('[/api/stream/managed/stop] Looked up session by userId:', activeSession ? 'found' : 'not found');
-      }
+        console.log('[/api/stream/managed/stop] Stopping managed stream for user:', userId);
 
-      if (!activeSession) {
-        console.log('[/api/stream/managed/stop] No active session - returning 401');
-        res.status(401).json({ error: 'Unauthorized - no active session' });
-        return;
-      }
+        const session = activeSession as any;
 
-      console.log('[/api/stream/managed/stop] Stopping managed stream for user:', userId);
+        // Reset retry state to cancel any in-progress auto-recovery
+        resetRetryState(userId);
 
-      const session = activeSession as any;
+        await stopManagedStream(activeSession);
 
-      await stopManagedStream(activeSession);
-
-      // Always clear session state
-      clearStreamState(session);
-      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-      res.json({ ok: true });
+        // Always clear session state (including error)
+        clearStreamState(session);
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+        res.json({ ok: true });
+      });
     } catch (err: any) {
       console.error('Error stopping managed stream:', err);
 
+      // Reset retry state even on error
+      resetRetryState(userId);
+
       // Even if stop fails, update UI to reflect no stream
-      const userId = getUserIdFromRequest(req);
-      let activeSession: AppSession | undefined = req.activeSession;
+      let activeSession: AppSession | undefined = req.activeSession ?? undefined;
       if (!activeSession && getUserSession && userId) {
         activeSession = getUserSession(userId);
       }
@@ -189,57 +223,70 @@ export function registerStreamRoutes(
 
   // API: Start unmanaged RTMP stream
   app.post('/api/stream/unmanaged/start', async (req: any, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Check if an operation is already in progress
+    const activeLock = hasActiveLock(userId);
+    if (activeLock) {
+      console.log(`[/api/stream/unmanaged/start] Operation ${activeLock.operation} already in progress for ${userId}`);
+      res.status(409).json({
+        ok: false,
+        error: `A ${activeLock.operation} operation is already in progress. Please wait for it to complete.`
+      });
+      return;
+    }
+
     try {
-      console.log('[/api/stream/unmanaged/start] Request received');
+      await withStreamLock(userId, 'start', async () => {
+        console.log('[/api/stream/unmanaged/start] Request received');
+        console.log('[/api/stream/unmanaged/start] userId:', userId);
 
-      const userId = getUserIdFromRequest(req);
-      console.log('[/api/stream/unmanaged/start] userId:', userId);
+        // Get the active session
+        let activeSession: AppSession | undefined = req.activeSession ?? undefined;
+        if (!activeSession && getUserSession) {
+          activeSession = getUserSession(userId);
+          console.log('[/api/stream/unmanaged/start] Looked up session by userId:', activeSession ? 'found' : 'not found');
+        }
 
-      if (!userId) {
-        res.status(401).json({ error: 'Unauthorized - no userId' });
-        return;
-      }
+        if (!activeSession) {
+          res.status(401).json({ error: 'Unauthorized - no active session' });
+          return;
+        }
 
-      // Get the active session
-      let activeSession: AppSession | undefined = req.activeSession;
-      if (!activeSession && getUserSession) {
-        activeSession = getUserSession(userId);
-        console.log('[/api/stream/unmanaged/start] Looked up session by userId:', activeSession ? 'found' : 'not found');
-      }
+        // Save configuration
+        const session = activeSession as any;
+        if (req.body?.platform) session.streamPlatform = req.body.platform;
+        if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
+        if (req.body?.customRtmpUrl !== undefined) session.customRtmpUrl = req.body.customRtmpUrl;
+        if (req.body?.useCloudflareManaged !== undefined) session.useCloudflareManaged = req.body.useCloudflareManaged;
 
-      if (!activeSession) {
-        res.status(401).json({ error: 'Unauthorized - no active session' });
-        return;
-      }
+        // Build RTMP URL
+        let rtmpUrl: string | undefined = req.body?.rtmpUrl;
 
-      // Save configuration
-      const session = activeSession as any;
-      if (req.body?.platform) session.streamPlatform = req.body.platform;
-      if (req.body?.streamKey !== undefined) session.streamKey = req.body.streamKey;
-      if (req.body?.customRtmpUrl !== undefined) session.customRtmpUrl = req.body.customRtmpUrl;
-      if (req.body?.useCloudflareManaged !== undefined) session.useCloudflareManaged = req.body.useCloudflareManaged;
+        if (!rtmpUrl) {
+          rtmpUrl = buildRtmpUrl(
+            session.streamPlatform,
+            session.streamKey,
+            session.customRtmpUrl
+          );
+        }
 
-      // Build RTMP URL
-      let rtmpUrl: string | undefined = req.body?.rtmpUrl;
+        if (!rtmpUrl) {
+          res.status(400).json({ ok: false, error: 'Missing rtmpUrl - could not build URL from platform config' });
+          return;
+        }
 
-      if (!rtmpUrl) {
-        rtmpUrl = buildRtmpUrl(
-          session.streamPlatform,
-          session.streamKey,
-          session.customRtmpUrl
-        );
-      }
+        console.log('[/api/stream/unmanaged/start] Starting stream to:', rtmpUrl.replace(/\/[^/]*$/, '/****'));
 
-      if (!rtmpUrl) {
-        res.status(400).json({ ok: false, error: 'Missing rtmpUrl - could not build URL from platform config' });
-        return;
-      }
-
-      console.log('[/api/stream/unmanaged/start] Starting stream to:', rtmpUrl.replace(/\/[^/]*$/, '/****'));
-
-      await startUnmanagedStream(activeSession, rtmpUrl);
-      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-      res.json({ ok: true });
+        await startUnmanagedStream(activeSession, rtmpUrl);
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+        res.json({ ok: true });
+      });
     } catch (err: any) {
       console.error('[/api/stream/unmanaged/start] Error:', err);
       res.status(400).json({ ok: false, error: String(err?.message ?? err) });
@@ -248,44 +295,62 @@ export function registerStreamRoutes(
 
   // API: Stop unmanaged RTMP stream
   app.post('/api/stream/unmanaged/stop', async (req: any, res: any) => {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized - no userId' });
+      return;
+    }
+
+    // Check if an operation is already in progress
+    const activeLock = hasActiveLock(userId);
+    if (activeLock) {
+      console.log(`[/api/stream/unmanaged/stop] Operation ${activeLock.operation} already in progress for ${userId}`);
+      res.status(409).json({
+        ok: false,
+        error: `A ${activeLock.operation} operation is already in progress. Please wait for it to complete.`
+      });
+      return;
+    }
+
     try {
-      console.log('[/api/stream/unmanaged/stop] Request received');
+      await withStreamLock(userId, 'stop', async () => {
+        console.log('[/api/stream/unmanaged/stop] Request received');
+        console.log('[/api/stream/unmanaged/stop] userId:', userId);
 
-      const userId = getUserIdFromRequest(req);
-      console.log('[/api/stream/unmanaged/stop] userId:', userId);
+        // Get the active session
+        let activeSession: AppSession | undefined = req.activeSession ?? undefined;
+        if (!activeSession && getUserSession) {
+          activeSession = getUserSession(userId);
+          console.log('[/api/stream/unmanaged/stop] Looked up session by userId:', activeSession ? 'found' : 'not found');
+        }
 
-      if (!userId) {
-        res.status(401).json({ error: 'Unauthorized - no userId' });
-        return;
-      }
+        if (!activeSession) {
+          res.status(401).json({ error: 'Unauthorized - no active session' });
+          return;
+        }
 
-      // Get the active session
-      let activeSession: AppSession | undefined = req.activeSession;
-      if (!activeSession && getUserSession) {
-        activeSession = getUserSession(userId);
-        console.log('[/api/stream/unmanaged/stop] Looked up session by userId:', activeSession ? 'found' : 'not found');
-      }
+        console.log('[/api/stream/unmanaged/stop] Stopping unmanaged stream for user:', userId);
 
-      if (!activeSession) {
-        res.status(401).json({ error: 'Unauthorized - no active session' });
-        return;
-      }
+        const session = activeSession as any;
 
-      console.log('[/api/stream/unmanaged/stop] Stopping unmanaged stream for user:', userId);
+        // Reset retry state to cancel any in-progress auto-recovery
+        resetRetryState(userId);
 
-      const session = activeSession as any;
+        await stopUnmanagedStream(activeSession);
 
-      await stopUnmanagedStream(activeSession);
-
-      clearStreamState(session);
-      broadcastStreamStatus(userId, formatStreamStatus(activeSession));
-      res.json({ ok: true });
+        clearStreamState(session);
+        broadcastStreamStatus(userId, formatStreamStatus(activeSession));
+        res.json({ ok: true });
+      });
     } catch (err: any) {
       console.error('[/api/stream/unmanaged/stop] Error:', err);
 
+      // Reset retry state even on error
+      resetRetryState(userId);
+
       // Even if stop fails, update UI to reflect no stream
-      const userId = getUserIdFromRequest(req);
-      let activeSession: AppSession | undefined = req.activeSession;
+      let activeSession: AppSession | undefined = req.activeSession ?? undefined;
       if (!activeSession && getUserSession && userId) {
         activeSession = getUserSession(userId);
       }
