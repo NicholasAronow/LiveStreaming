@@ -6,7 +6,7 @@ build:
   context: .
   dockerfile: ./docker/Dockerfile
 services:
-  - name: streamer-app-aryan
+  - name: streamer-staging
     type: web
     run: bun run start
     port: 80
