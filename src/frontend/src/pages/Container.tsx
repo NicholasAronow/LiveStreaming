@@ -157,7 +157,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
           logType = "error";
         } else if (
           statusLower === "stopping" ||
-          statusLower === "disconnecting"
+          statusLower === "disconnecting" ||
+          statusLower === "reconnecting"
         ) {
           logType = "warning";
         }
@@ -181,7 +182,8 @@ function Container({ userId: userIdProp }: ContainerProps) {
           logType = "error";
         } else if (
           statusLower === "stopping" ||
-          statusLower === "disconnecting"
+          statusLower === "disconnecting" ||
+          statusLower === "reconnecting"
         ) {
           logType = "warning";
         }

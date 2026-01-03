@@ -17,6 +17,7 @@ import { broadcastStreamStatus, formatStreamStatus } from '../services/sse.servi
 import { buildRtmpUrl } from '../utils/platform-urls';
 import { withStreamLock, hasActiveLock } from '../services/operation-lock.service';
 import { resetRetryState } from '../services/stream-recovery.service';
+import { clearPendingStreamRestart } from '../handlers/device-state.handler';
 
 /**
  * Registers stream control routes
@@ -212,6 +213,10 @@ export function registerStreamRoutes(
 
         // Reset retry state to cancel any in-progress auto-recovery
         resetRetryState(userId);
+
+        // Clear any pending stream restart (from WiFi reconnection logic)
+        // This ensures manual stop actually stops and doesn't trigger auto-restart
+        clearPendingStreamRestart(userId);
 
         await stopManagedStream(activeSession);
 

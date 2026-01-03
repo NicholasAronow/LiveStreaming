@@ -214,7 +214,7 @@ export default function StreamPreview() {
             {/* Logo */}
             <div className="text-[40px] font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
               Streamer
-            </div>
+            </div> //
 
             {/* Share Button */}
             <button

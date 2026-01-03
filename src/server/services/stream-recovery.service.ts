@@ -1,17 +1,12 @@
 import type { AppSession } from '@mentra/sdk';
 import { broadcastStreamStatus, formatStreamStatus } from '../setup';
-
-// Retry configuration
-const MAX_RETRY_ATTEMPTS = 3;
-const INITIAL_RETRY_DELAY_MS = 2000; // 2 seconds
-const MAX_RETRY_DELAY_MS = 30000; // 30 seconds
-const BACKOFF_MULTIPLIER = 2;
+import { STREAM_RECONNECT_TIMEOUT_MS, STREAM_RECONNECT_RETRY_INTERVAL_MS } from '../utils/constants';
 
 // Track retry state per user
 const retryState = new Map<string, {
-  attempts: number;
-  lastAttemptTime: number;
+  reconnectStartTime: number; // When reconnection started
   isRetrying: boolean;
+  abortController: AbortController | null; // To cancel ongoing reconnection
 }>();
 
 // Errors that should NOT trigger auto-retry (permanent failures)
@@ -35,37 +30,34 @@ function isRecoverableError(errorMessage: string): boolean {
 }
 
 /**
- * Calculates delay for exponential backoff
- */
-function calculateBackoffDelay(attempt: number): number {
-  const delay = INITIAL_RETRY_DELAY_MS * Math.pow(BACKOFF_MULTIPLIER, attempt);
-  return Math.min(delay, MAX_RETRY_DELAY_MS);
-}
-
-/**
  * Gets or creates retry state for a user
  */
 function getRetryState(userId: string) {
   if (!retryState.has(userId)) {
     retryState.set(userId, {
-      attempts: 0,
-      lastAttemptTime: 0,
+      reconnectStartTime: 0,
       isRetrying: false,
+      abortController: null,
     });
   }
   return retryState.get(userId)!;
 }
 
 /**
- * Resets retry state for a user (call on successful stream start)
+ * Resets retry state for a user (call on successful stream start or when giving up)
  */
 export function resetRetryState(userId: string): void {
+  const state = retryState.get(userId);
+  if (state?.abortController) {
+    state.abortController.abort();
+  }
   retryState.delete(userId);
   console.log(`[stream-recovery] Reset retry state for ${userId}`);
 }
 
 /**
  * Handles stream errors with auto-stop and status broadcasting
+ * Does NOT broadcast multiple states - just prepares for reconnection
  * @param session The active session
  * @param userId The user ID
  * @param errorData The error data from stream status
@@ -82,19 +74,11 @@ export async function handleStreamError(
   console.error(`❌ [${userId}] Error message:`, errorMessage);
   console.error(`❌ [${userId}] Full error data:`, JSON.stringify(errorData, null, 2));
 
-  const sess = session as any;
-
   // Check if this is a recoverable error
   const recoverable = isRecoverableError(errorMessage);
   console.log(`[${userId}] Error recoverable: ${recoverable}`);
 
-  // First broadcast the error status
-  sess.streamType = 'managed';
-  sess.streamStatus = errorData.status;
-  sess.error = errorMessage;
-  broadcastStreamStatus(userId, formatStreamStatus(session));
-
-  // Then cleanup - try to stop the stream
+  // Try to stop the stream silently
   console.log(`[${userId}] Auto-stopping managed stream...`);
   try {
     await session.camera.stopManagedStream();
@@ -103,22 +87,26 @@ export async function handleStreamError(
     console.error(`[${userId}] Failed to auto-stop errored stream:`, stopErr);
   }
 
-  // Reset session state after stop completes
-  sess.streamStatus = 'offline';
-  sess.streamType = null;
-  sess.streamId = null;
-  sess.previewUrl = null;
-  sess.hlsUrl = null;
-  sess.dashUrl = null;
-
-  // Broadcast offline status (keep error message for user visibility)
-  broadcastStreamStatus(userId, formatStreamStatus(session));
+  // If not recoverable, broadcast error and reset state
+  if (!recoverable) {
+    const sess = session as any;
+    sess.streamType = 'managed';
+    sess.streamStatus = 'error';
+    sess.error = errorMessage;
+    sess.streamId = null;
+    sess.previewUrl = null;
+    sess.hlsUrl = null;
+    sess.dashUrl = null;
+    broadcastStreamStatus(userId, formatStreamStatus(session));
+  }
 
   return recoverable;
 }
 
 /**
- * Attempts to restart a stream with exponential backoff
+ * Attempts to restart a stream using time-based reconnection.
+ * Will keep trying for STREAM_RECONNECT_TIMEOUT_MS milliseconds.
+ * Broadcasts a single "reconnecting" status during the entire process.
  * @param session The active session
  * @param userId The user ID
  * @returns true if restart was successful
@@ -132,99 +120,118 @@ export async function attemptStreamRestart(
 
   // Check if we're already retrying
   if (state.isRetrying) {
-    console.log(`[${userId}] Retry already in progress, skipping...`);
+    console.log(`[${userId}] Reconnection already in progress, skipping...`);
     return false;
   }
 
-  // Check if we've exceeded max attempts
-  if (state.attempts >= MAX_RETRY_ATTEMPTS) {
-    console.error(`❌ [${userId}] Max retry attempts (${MAX_RETRY_ATTEMPTS}) exceeded. Giving up.`);
-    sess.error = `Stream failed after ${MAX_RETRY_ATTEMPTS} retry attempts. Please try starting manually.`;
-    broadcastStreamStatus(userId, formatStreamStatus(session));
-    resetRetryState(userId);
-    return false;
-  }
-
+  // Start reconnection window
   state.isRetrying = true;
-  state.attempts++;
+  state.reconnectStartTime = Date.now();
+  state.abortController = new AbortController();
 
-  // Calculate backoff delay
-  const delay = calculateBackoffDelay(state.attempts - 1);
-  console.log(`[${userId}] Retry attempt ${state.attempts}/${MAX_RETRY_ATTEMPTS} in ${delay}ms...`);
+  const timeoutSeconds = Math.round(STREAM_RECONNECT_TIMEOUT_MS / 1000);
+  console.log(`[${userId}] Starting ${timeoutSeconds}s reconnection window...`);
 
-  // Broadcast retry status to user
-  sess.error = `Reconnecting... (attempt ${state.attempts}/${MAX_RETRY_ATTEMPTS})`;
+  // Broadcast "reconnecting" status once at the start
+  sess.streamType = 'managed';
+  sess.streamStatus = 'reconnecting';
+  sess.error = null;
   broadcastStreamStatus(userId, formatStreamStatus(session));
 
-  // Wait with exponential backoff
-  await new Promise((resolve) => setTimeout(resolve, delay));
+  let attemptCount = 0;
 
-  try {
-    // Build options from saved config
-    let options: any = undefined;
-    if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
-      console.log(`[${userId}] Auto-restarting stream with restream configuration...`);
-      options = { restreamDestinations: sess.restreamDestinations };
-    } else {
-      console.log(`[${userId}] Auto-restarting basic managed stream (no restream)...`);
+  // Keep trying until timeout expires
+  while (Date.now() - state.reconnectStartTime < STREAM_RECONNECT_TIMEOUT_MS) {
+    // Check if aborted
+    if (state.abortController?.signal.aborted) {
+      console.log(`[${userId}] Reconnection aborted`);
+      break;
     }
 
-    await session.camera.startManagedStream(options);
+    attemptCount++;
+    const elapsedMs = Date.now() - state.reconnectStartTime;
+    const remainingMs = STREAM_RECONNECT_TIMEOUT_MS - elapsedMs;
+    const remainingSeconds = Math.round(remainingMs / 1000);
 
-    console.log(`✅ [${userId}] Auto-restart successful on attempt ${state.attempts}`);
-    state.isRetrying = false;
-    state.lastAttemptTime = Date.now();
+    console.log(`[${userId}] Reconnection attempt ${attemptCount} (${remainingSeconds}s remaining)...`);
 
-    // Clear error on success
-    sess.error = null;
-    broadcastStreamStatus(userId, formatStreamStatus(session));
+    try {
+      // Build options from saved config
+      let options: any = undefined;
+      if (sess.restreamDestinations && sess.restreamDestinations.length > 0) {
+        console.log(`[${userId}] Restarting with restream configuration...`);
+        options = { restreamDestinations: sess.restreamDestinations };
+      } else {
+        console.log(`[${userId}] Restarting basic managed stream (no restream)...`);
+      }
 
-    // Reset retry count on success
-    resetRetryState(userId);
-    return true;
+      await session.camera.startManagedStream(options);
 
-  } catch (restartErr) {
-    const errorMessage = String(restartErr);
-    console.error(`❌ [${userId}] Retry attempt ${state.attempts} failed:`, errorMessage);
+      console.log(`✅ [${userId}] Reconnection successful on attempt ${attemptCount}`);
 
-    state.isRetrying = false;
-    state.lastAttemptTime = Date.now();
+      // Clear error and let normal status updates take over
+      sess.error = null;
+      // Don't broadcast here - the SDK will send a status update that triggers normal flow
 
-    // Check if this error is non-recoverable
-    if (!isRecoverableError(errorMessage)) {
-      console.error(`❌ [${userId}] Non-recoverable error detected, stopping retries`);
-      sess.error = `Stream failed: ${errorMessage}`;
-      broadcastStreamStatus(userId, formatStreamStatus(session));
       resetRetryState(userId);
-      return false;
+      return true;
+
+    } catch (restartErr) {
+      const errorMessage = String(restartErr);
+      console.error(`❌ [${userId}] Reconnection attempt ${attemptCount} failed:`, errorMessage);
+
+      // Check if this error is non-recoverable
+      if (!isRecoverableError(errorMessage)) {
+        console.error(`❌ [${userId}] Non-recoverable error detected, stopping reconnection`);
+        sess.streamStatus = 'error';
+        sess.error = `Stream failed: ${errorMessage}`;
+        broadcastStreamStatus(userId, formatStreamStatus(session));
+        resetRetryState(userId);
+        return false;
+      }
+
+      // Check if we still have time remaining
+      const timeRemaining = STREAM_RECONNECT_TIMEOUT_MS - (Date.now() - state.reconnectStartTime);
+      if (timeRemaining <= 0) {
+        break;
+      }
+
+      // Wait before next attempt (but don't wait longer than remaining time)
+      const waitTime = Math.min(STREAM_RECONNECT_RETRY_INTERVAL_MS, timeRemaining);
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
-
-    // Update error message with retry info
-    sess.error = `Retry ${state.attempts}/${MAX_RETRY_ATTEMPTS} failed: ${errorMessage}`;
-    broadcastStreamStatus(userId, formatStreamStatus(session));
-
-    // Recursively try again if we haven't exceeded max attempts
-    if (state.attempts < MAX_RETRY_ATTEMPTS) {
-      return attemptStreamRestart(session, userId);
-    }
-
-    // Max attempts reached
-    sess.error = `Stream failed after ${MAX_RETRY_ATTEMPTS} retry attempts. Please try starting manually.`;
-    broadcastStreamStatus(userId, formatStreamStatus(session));
-    resetRetryState(userId);
-    return false;
   }
+
+  // Timeout reached - give up
+  const totalSeconds = Math.round(STREAM_RECONNECT_TIMEOUT_MS / 1000);
+  console.error(`❌ [${userId}] Reconnection failed after ${totalSeconds} seconds (${attemptCount} attempts). Giving up.`);
+
+  sess.streamStatus = 'offline';
+  sess.streamType = null;
+  sess.streamId = null;
+  sess.previewUrl = null;
+  sess.hlsUrl = null;
+  sess.dashUrl = null;
+  sess.error = `Stream disconnected. Reconnection failed after ${totalSeconds} seconds.`;
+  broadcastStreamStatus(userId, formatStreamStatus(session));
+
+  resetRetryState(userId);
+  return false;
 }
 
 /**
  * Gets current retry state for a user (for monitoring/debugging)
  */
-export function getRetryStatus(userId: string): { attempts: number; isRetrying: boolean; maxAttempts: number } | null {
+export function getRetryStatus(userId: string): {
+  isRetrying: boolean;
+  elapsedMs: number;
+  timeoutMs: number;
+} | null {
   const state = retryState.get(userId);
   if (!state) return null;
   return {
-    attempts: state.attempts,
     isRetrying: state.isRetrying,
-    maxAttempts: MAX_RETRY_ATTEMPTS,
+    elapsedMs: state.reconnectStartTime > 0 ? Date.now() - state.reconnectStartTime : 0,
+    timeoutMs: STREAM_RECONNECT_TIMEOUT_MS,
   };
 }

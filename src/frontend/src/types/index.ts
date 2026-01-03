@@ -15,6 +15,7 @@ export interface StreamStatus {
   glassesBatteryPercent?: number | null;
   hasActiveSession?: boolean;
   streamPlatform?: string | null;
+  glassesWifiConnected?: boolean | null;
 }
 
 export interface StreamConfig {

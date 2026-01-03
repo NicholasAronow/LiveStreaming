@@ -72,10 +72,90 @@ function StreamPlatformHub({
       setButtonState('live');
     } else if (status === 'offline' || status === 'error' || status === 'failed') {
       setButtonState('idle');
+    } else if (status === 'reconnecting') {
+      // During reconnecting, show as 'live' so user can still stop the stream
+      setButtonState('live');
     }
     // Ignore intermediate states like 'connecting', 'stopping', etc.
     // Those will be set by user actions in handleToggleStream
   }, [streamStatus]);
+
+  // Check if currently reconnecting (for status badge animation)
+  const isReconnecting = streamStatus.toLowerCase() === 'reconnecting';
+
+  // Cache buster timestamp for forcing fresh stream content after reconnection
+  const [cacheBuster, setCacheBuster] = useState<number | null>(null);
+
+  // Hide iframe during reconnection and for a brief period after to let stream stabilize
+  const [hideIframeDuringReconnect, setHideIframeDuringReconnect] = useState(false);
+
+  // Track if user manually stopped the stream - prevents reconnecting overlay on manual stop/start
+  const [userManuallyStopped, setUserManuallyStopped] = useState(false);
+
+  // Handle reconnection overlay visibility
+  useEffect(() => {
+    const status = streamStatus.toLowerCase();
+    const isNowLive = status === 'streaming' || status === 'active' || status === 'connected';
+    // Include 'stopped' in offline states - this happens during reconnection timeout
+    const isOffline = status === 'offline' || status === 'error' || status === 'failed' || status === 'stopped';
+
+    // Reset ALL reconnection state when stream goes offline (manual stop, error, or timeout)
+    if (isOffline) {
+      console.log('[StreamPlatformHub] Stream offline - resetting reconnection state');
+      setHideIframeDuringReconnect(false);
+      setUserManuallyStopped(false);
+      return;
+    }
+
+    // Show overlay when entering reconnecting state
+    if (isReconnecting && !hideIframeDuringReconnect && !userManuallyStopped) {
+      console.log('[StreamPlatformHub] Reconnecting - showing overlay');
+      setHideIframeDuringReconnect(true);
+    }
+
+    // Clear manual stop flag when we go live
+    if (isNowLive && userManuallyStopped) {
+      setUserManuallyStopped(false);
+    }
+  }, [streamStatus, isReconnecting, hideIframeDuringReconnect, userManuallyStopped]);
+
+  // Clear overlay when stream becomes live with a valid previewUrl after reconnection
+  useEffect(() => {
+    const status = streamStatus.toLowerCase();
+    const isNowLive = status === 'streaming' || status === 'active' || status === 'connected';
+
+    // If we're showing the overlay and stream is now live with a previewUrl, schedule removal
+    if (hideIframeDuringReconnect && isNowLive && previewUrl && !userManuallyStopped) {
+      console.log('[StreamPlatformHub] Stream is live with previewUrl - scheduling overlay removal');
+
+      // Wait 10s for HLS segments to stabilize (reduced from 30s since we're starting a fresh stream)
+      // The fresh stream after reconnection doesn't have discontinuity issues
+      const timeoutId = setTimeout(() => {
+        console.log('[StreamPlatformHub] Removing overlay and showing fresh iframe');
+        setCacheBuster(Date.now());
+        setIframeKey((prev) => prev + 1);
+        setHideIframeDuringReconnect(false);
+      }, 10000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [hideIframeDuringReconnect, streamStatus, previewUrl, userManuallyStopped]);
+
+  // Build the preview URL with cache buster and live edge parameters
+  const getPreviewUrlWithCacheBuster = () => {
+    if (!previewUrl) return null;
+    if (!cacheBuster) return previewUrl;
+
+    // For Cloudflare Stream iframe (iframe.videodelivery.net):
+    // - Add cache buster to force browser to not use cached iframe
+    // - Add liveSyncDuration=0 to minimize buffer and jump to live edge
+    // - Add liveSyncDurationCount=1 to use minimal segments
+    const separator = previewUrl.includes('?') ? '&' : '?';
+    return `${previewUrl}${separator}_cb=${cacheBuster}`;
+  };
+
+  // Determine if iframe should be shown
+  const shouldShowIframe = showPreview && previewUrl && isStreaming && !hideIframeDuringReconnect;
 
   // Update duration when streaming - calculate from database start time
   // Only start counting after the 30-second countdown finishes
@@ -222,6 +302,10 @@ function StreamPlatformHub({
 
     if (buttonState === 'live') {
       setButtonState('stopping');
+      // Mark as manually stopped - this ensures the reconnecting overlay
+      // won't show when user manually stops and restarts the stream
+      setUserManuallyStopped(true);
+      setHideIframeDuringReconnect(false);
       onStopStream?.();
     } else if (buttonState === 'idle') {
       // Safety check: Verify we're not already streaming before starting
@@ -271,6 +355,10 @@ function StreamPlatformHub({
         }
       }
 
+      // Reset all reconnection state before starting fresh stream
+      setHideIframeDuringReconnect(false);
+      setUserManuallyStopped(false);
+
       setButtonState('starting');
       onStartStream?.();
     }
@@ -286,6 +374,8 @@ function StreamPlatformHub({
       return "#10B981"; // green
     } else if (status === "connecting" || status === "starting") {
       return "#F59E0B"; // orange
+    } else if (status === "reconnecting") {
+      return "#F59E0B"; // orange - reconnecting state
     } else if (status === "error" || status === "failed") {
       return "#EF4444"; // red
     }
@@ -306,6 +396,8 @@ function StreamPlatformHub({
       status === "initializing"
     ) {
       return "Starting";
+    } else if (status === "reconnecting") {
+      return "Reconnecting";
     } else if (status === "stopping" || status === "disconnecting") {
       return "Stopping";
     } else if (status === "error" || status === "failed") {
@@ -374,18 +466,36 @@ function StreamPlatformHub({
                 className="flex rounded-full px-[12px] h-[24px] justify-center items-center gap-[4px]"
                 style={{ backgroundColor: getStatusColor() }}
               >
-                <div className="w-[8px] h-[8px] rounded-full bg-white"></div>
+                {isReconnecting ? (
+                  // Spinning loader for reconnecting state
+                  <svg
+                    className="animate-spin w-[12px] h-[12px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="3"
+                  >
+                    <circle cx="12" cy="12" r="10" opacity="0.25" />
+                    <path
+                      d="M12 2a10 10 0 0 1 10 10"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                ) : (
+                  // Normal dot indicator
+                  <div className="w-[8px] h-[8px] rounded-full bg-white"></div>
+                )}
                 <span className="text-white text-[12px] font-medium">
                   {getStatusLabel()}
                 </span>
               </div>
             </div>
 
-            {/* Video Preview iframe - Load in background during countdown */}
-            {showPreview && previewUrl && isStreaming && (
+            {/* Video Preview iframe - Load in background during countdown, hidden during reconnect */}
+            {shouldShowIframe && (
               <iframe
                 key={iframeKey}
-                src={previewUrl}
+                src={getPreviewUrlWithCacheBuster() || previewUrl}
                 className={`absolute inset-0 w-full h-full border-none ${
                   showCountdown ? "invisible" : "visible"
                 }`}
@@ -394,8 +504,33 @@ function StreamPlatformHub({
               />
             )}
 
+            {/* Reconnecting Overlay - Shows while stream is reconnecting */}
+            {/* Show overlay when reconnecting OR hideIframeDuringReconnect, but not if user manually stopped */}
+            {(isReconnecting || hideIframeDuringReconnect) && !userManuallyStopped && (
+              <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-10">
+                <div className="flex flex-col items-center gap-[8px]">
+                  <svg
+                    className="animate-spin w-[32px] h-[32px] mb-[8px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#a3a3a3"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" opacity="0.25" />
+                    <path
+                      d="M12 2a10 10 0 0 1 10 10"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <p className="text-[#a3a3a3] text-[13px] font-normal">
+                    Reconnecting stream...
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Countdown Overlay - Shows over loading stream */}
-            {showCountdown && isStreaming && (
+            {showCountdown && isStreaming && !hideIframeDuringReconnect && (
               <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-[8px]">
                   <p className="text-[#a3a3a3] text-[13px] font-normal">

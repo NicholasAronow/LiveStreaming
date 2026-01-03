@@ -13,13 +13,18 @@ declare module "@mentra/sdk" {
         glassesBatteryPercent: number | null;
         previewUrl: string | null;
         thumbnailUrl: string | null;
-        
+
+        // Glasses WiFi state
+        glassesSupportsWifi: boolean | null;
+        glassesWifiConnected: boolean | null;
+        glassesWifiSsid: string | null;
+
         // Persist user configuration
         streamPlatform: 'here' | 'youtube' | 'twitch' | 'instagram' | 'other' | null;
         streamKey: string | null;
         customRtmpUrl: string | null;
         useCloudflareManaged: boolean;
-        
+
         // Store active restream destinations
         restreamDestinations?: Array<{
             url: string;
