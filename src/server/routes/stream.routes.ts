@@ -142,11 +142,11 @@ export function registerStreamRoutes(
           console.error(`[/api/stream/managed/start] Stream start error for ${userId}:`, streamErrorMessage);
 
           // Handle specific error types
-          if (streamErrorMessage.includes('must be connected to WiFi')) {
-            console.error(`❌ [${userId}] WiFi Error`);
+          if (streamErrorMessage.includes('must be connected to WiFi') || streamErrorMessage.includes('smart glasses are not connected')) {
+            console.error(`❌ [${userId}] Glasses not connected`);
             res.status(400).json({
               ok: false,
-              error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
+              error: 'Your smart glasses are not connected. Please ensure your glasses are connected and try again.'
             });
           } else if (streamErrorMessage.includes('WebSocket not connected') || streamErrorMessage.includes('CLOSED')) {
             console.error(`❌ [${userId}] WebSocket Error`);
