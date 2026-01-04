@@ -14,6 +14,13 @@ interface PendingStreamRestart {
 
 const pendingStreamRestarts = new Map<string, PendingStreamRestart>();
 
+// Track users who want their stream stopped (set when stop is requested while glasses disconnected)
+const pendingStreamStops = new Set<string>();
+
+// Track users who have explicitly stopped their stream
+// This prevents auto-reconnect/auto-restart until they explicitly press start again
+const userExplicitlyStoppedStream = new Set<string>();
+
 // Delay before auto-restarting stream after WiFi reconnects (let connection stabilize)
 const WIFI_RECONNECT_DELAY_MS = 5000;
 
@@ -34,6 +41,77 @@ export function clearPendingStreamRestart(userId: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Marks that a user wants their stream stopped (used when stop is requested while glasses disconnected)
+ * @param userId The user ID
+ */
+export function setPendingStreamStop(userId: string): void {
+  pendingStreamStops.add(userId);
+  console.log(`🛑 [${userId}] Marked pending stream stop (will stop on reconnect)`);
+}
+
+/**
+ * Checks and clears pending stream stop for a user
+ * @param userId The user ID
+ * @returns True if user had a pending stop request
+ */
+export function consumePendingStreamStop(userId: string): boolean {
+  if (pendingStreamStops.has(userId)) {
+    pendingStreamStops.delete(userId);
+    console.log(`🛑 [${userId}] Consuming pending stream stop`);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Clears pending stream stop without consuming (e.g., when user starts a new stream)
+ * @param userId The user ID
+ */
+export function clearPendingStreamStop(userId: string): void {
+  pendingStreamStops.delete(userId);
+}
+
+/**
+ * Marks that a user has explicitly stopped their stream.
+ * This prevents auto-reconnect/auto-restart until they explicitly press start again.
+ * Also clears any pending restart to prevent WiFi reconnection from restarting.
+ * @param userId The user ID
+ */
+export function setUserExplicitlyStopped(userId: string): void {
+  userExplicitlyStoppedStream.add(userId);
+  // Also clear any pending restart - user explicitly stopped, so no auto-restart
+  const pending = pendingStreamRestarts.get(userId);
+  if (pending) {
+    if (pending.timeoutId) {
+      clearTimeout(pending.timeoutId);
+    }
+    pendingStreamRestarts.delete(userId);
+    console.log(`🛑 [${userId}] Cleared pending restart due to explicit stop`);
+  }
+  console.log(`🛑 [${userId}] User explicitly stopped stream - will not auto-restart until user presses start`);
+}
+
+/**
+ * Checks if user has explicitly stopped their stream
+ * @param userId The user ID
+ * @returns True if user explicitly stopped and hasn't started again
+ */
+export function hasUserExplicitlyStopped(userId: string): boolean {
+  return userExplicitlyStoppedStream.has(userId);
+}
+
+/**
+ * Clears the explicit stop flag (called when user explicitly starts a stream)
+ * @param userId The user ID
+ */
+export function clearUserExplicitlyStopped(userId: string): void {
+  if (userExplicitlyStoppedStream.has(userId)) {
+    userExplicitlyStoppedStream.delete(userId);
+    console.log(`▶️ [${userId}] Cleared explicit stop flag - user started new stream`);
+  }
 }
 
 /**
@@ -78,9 +156,11 @@ export function setupDeviceStateListeners(
     });
 
     // WiFi DISCONNECTED - Stop the stream and save config for restart
+    // But only if user hasn't explicitly stopped the stream
     if (connected === false && sess.streamType === 'managed' &&
         sess.streamStatus && sess.streamStatus !== 'offline' &&
-        sess.streamStatus !== 'reconnecting') {
+        sess.streamStatus !== 'reconnecting' &&
+        !hasUserExplicitlyStopped(userId)) {
 
       console.log(`📶 [${userId}] WiFi disconnected during active stream - stopping stream for clean restart`);
 
@@ -155,6 +235,18 @@ export function setupDeviceStateListeners(
               clearTimeout(stillPending.timeoutId);
             }
             pendingStreamRestarts.delete(userId);
+            return;
+          }
+
+          // Check if user explicitly stopped the stream - don't auto-restart
+          if (hasUserExplicitlyStopped(userId)) {
+            console.log(`🛑 [${userId}] User explicitly stopped stream - skipping WiFi reconnection auto-restart`);
+            if (stillPending.timeoutId) {
+              clearTimeout(stillPending.timeoutId);
+            }
+            pendingStreamRestarts.delete(userId);
+            sess.streamStatus = 'offline';
+            broadcastStreamStatus(userId, formatStreamStatus(session));
             return;
           }
 

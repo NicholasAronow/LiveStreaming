@@ -108,6 +108,22 @@ export function releaseAllLocks(): void {
 }
 
 /**
+ * Force releases a specific user's lock (for cancel/abort operations)
+ * @param userId The user ID
+ * @returns true if a lock was released, false if no lock existed
+ */
+export function forceReleaseLock(userId: string): boolean {
+  const lock = userLocks.get(userId);
+  if (lock) {
+    console.log(`[operation-lock] Force releasing ${lock.operation} lock for user ${userId} (user requested stop)`);
+    lock.resolve();
+    userLocks.delete(userId);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Wraps an async operation with automatic lock acquisition and release
  * @param userId The user ID
  * @param operation The operation type
