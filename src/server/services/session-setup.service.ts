@@ -1,5 +1,6 @@
 import type { AppSession, StreamType } from '@mentra/sdk';
 import { broadcastStreamStatus, formatStreamStatus } from '../setup';
+import { consumePendingStreamStop, hasUserExplicitlyStopped } from '../handlers/device-state.handler';
 
 /**
  * Initializes a session with subscriptions and WiFi setup
@@ -44,6 +45,24 @@ export async function detectExistingStream(
 
     if (streamInfo.hasActiveStream && streamInfo.streamInfo) {
       console.log('Found existing stream:', streamInfo.streamInfo.type);
+
+      // Check if user explicitly stopped their stream - don't auto-reconnect
+      // This covers: user pressed stop, then glasses disconnected/reconnected via Bluetooth
+      if (hasUserExplicitlyStopped(userId) || consumePendingStreamStop(userId)) {
+        console.log(`🛑 [${userId}] User explicitly stopped stream - stopping existing stream on glasses instead of reconnecting`);
+        try {
+          if (streamInfo.streamInfo.type === 'managed') {
+            await session.camera.stopManagedStream();
+          } else {
+            await session.camera.stopStream();
+          }
+          console.log(`✅ [${userId}] Successfully stopped stream that user had explicitly stopped`);
+        } catch (stopError) {
+          console.error(`❌ [${userId}] Error stopping stream:`, stopError);
+        }
+        // Don't reconnect to the stream - user explicitly stopped it
+        return;
+      }
 
       if (streamInfo.streamInfo.type === 'managed') {
         // Managed stream is active - reconnect to it

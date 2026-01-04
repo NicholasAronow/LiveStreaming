@@ -15,8 +15,9 @@ import {
 } from '../services/stream.service';
 import { broadcastStreamStatus, formatStreamStatus } from '../services/sse.service';
 import { buildRtmpUrl } from '../utils/platform-urls';
-import { withStreamLock, hasActiveLock } from '../services/operation-lock.service';
+import { withStreamLock, hasActiveLock, forceReleaseLock } from '../services/operation-lock.service';
 import { resetRetryState } from '../services/stream-recovery.service';
+import { clearPendingStreamRestart, setPendingStreamStop, clearPendingStreamStop, setUserExplicitlyStopped, clearUserExplicitlyStopped } from '../handlers/device-state.handler';
 
 /**
  * Registers stream control routes
@@ -87,6 +88,10 @@ export function registerStreamRoutes(
 
         console.log('[/api/stream/managed/start] Starting managed stream for user:', userId);
 
+        // Clear any pending stop and explicit stop flags - user is explicitly starting a new stream
+        clearPendingStreamStop(userId);
+        clearUserExplicitlyStopped(userId);
+
         const session = activeSession as any;
 
         // Validate connection
@@ -137,11 +142,11 @@ export function registerStreamRoutes(
           console.error(`[/api/stream/managed/start] Stream start error for ${userId}:`, streamErrorMessage);
 
           // Handle specific error types
-          if (streamErrorMessage.includes('must be connected to WiFi')) {
-            console.error(`❌ [${userId}] WiFi Error`);
+          if (streamErrorMessage.includes('must be connected to WiFi') || streamErrorMessage.includes('smart glasses are not connected')) {
+            console.error(`❌ [${userId}] Glasses not connected`);
             res.status(400).json({
               ok: false,
-              error: 'Your glasses must be connected to WiFi to start streaming. Please connect your glasses to a WiFi network and try again.'
+              error: 'Your smart glasses are not connected. Please ensure your glasses are connected and try again.'
             });
           } else if (streamErrorMessage.includes('WebSocket not connected') || streamErrorMessage.includes('CLOSED')) {
             console.error(`❌ [${userId}] WebSocket Error`);
@@ -188,6 +193,13 @@ export function registerStreamRoutes(
       return;
     }
 
+    // ALWAYS clear pending restart and retry state when user presses stop,
+    // even if glasses are disconnected. This prevents auto-restart on reconnection.
+    resetRetryState(userId);
+    clearPendingStreamRestart(userId);
+    // Mark that user explicitly stopped - prevents auto-reconnect on Bluetooth reconnect
+    setUserExplicitlyStopped(userId);
+
     try {
       await withStreamLock(userId, 'stop', async () => {
         console.log('[/api/stream/managed/stop] Request received');
@@ -201,17 +213,16 @@ export function registerStreamRoutes(
         }
 
         if (!activeSession) {
-          console.log('[/api/stream/managed/stop] No active session - returning 401');
-          res.status(401).json({ error: 'Unauthorized - no active session' });
+          console.log('[/api/stream/managed/stop] No active session - glasses disconnected');
+          // Set pending stop so when glasses reconnect, we stop the stream instead of resuming it
+          setPendingStreamStop(userId);
+          res.json({ ok: true, message: 'Stream stop queued (glasses not connected - will stop on reconnect)' });
           return;
         }
 
         console.log('[/api/stream/managed/stop] Stopping managed stream for user:', userId);
 
         const session = activeSession as any;
-
-        // Reset retry state to cancel any in-progress auto-recovery
-        resetRetryState(userId);
 
         await stopManagedStream(activeSession);
 
@@ -321,16 +332,24 @@ export function registerStreamRoutes(
       return;
     }
 
-    // Check if an operation is already in progress
+    // If a start operation is in progress, force release it so user can cancel
     const activeLock = hasActiveLock(userId);
     if (activeLock) {
-      console.log(`[/api/stream/unmanaged/stop] Operation ${activeLock.operation} already in progress for ${userId}`);
-      res.status(409).json({
-        ok: false,
-        error: `A ${activeLock.operation} operation is already in progress. Please wait for it to complete.`
-      });
-      return;
+      if (activeLock.operation === 'start') {
+        console.log(`[/api/stream/unmanaged/stop] Cancelling in-progress start operation for ${userId}`);
+        forceReleaseLock(userId);
+      } else {
+        console.log(`[/api/stream/unmanaged/stop] Stop operation already in progress for ${userId}`);
+        res.status(409).json({
+          ok: false,
+          error: 'A stop operation is already in progress. Please wait for it to complete.'
+        });
+        return;
+      }
     }
+
+    // Mark that user explicitly stopped - prevents auto-reconnect on Bluetooth reconnect
+    setUserExplicitlyStopped(userId);
 
     try {
       await withStreamLock(userId, 'stop', async () => {
@@ -345,7 +364,10 @@ export function registerStreamRoutes(
         }
 
         if (!activeSession) {
-          res.status(401).json({ error: 'Unauthorized - no active session' });
+          console.log('[/api/stream/unmanaged/stop] No active session - glasses disconnected');
+          // Set pending stop so when glasses reconnect, we stop the stream instead of resuming it
+          setPendingStreamStop(userId);
+          res.json({ ok: true, message: 'Stream stop queued (glasses not connected - will stop on reconnect)' });
           return;
         }
 

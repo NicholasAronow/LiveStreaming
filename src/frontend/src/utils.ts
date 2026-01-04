@@ -31,7 +31,8 @@ export function isStreamingStatus(status?: string): boolean {
     statusLower === 'pending' ||
     statusLower === 'stopping' ||
     statusLower === 'disconnecting' ||
-    statusLower === 'initializing'
+    statusLower === 'initializing' ||
+    statusLower === 'reconnecting'
   );
 }
 

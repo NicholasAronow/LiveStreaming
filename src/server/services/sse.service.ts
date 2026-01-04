@@ -18,6 +18,7 @@ export type StreamStatusPayload = {
   glassesBatteryPercent?: number | null;
   hasActiveSession?: boolean;
   streamPlatform?: string | null;
+  glassesWifiConnected?: boolean | null;
 };
 
 /**
@@ -44,6 +45,7 @@ export function formatStreamStatus(session?: AppSession): StreamStatusPayload {
     glassesBatteryPercent: session?.glassesBatteryPercent ?? null,
     hasActiveSession: !!session,
     streamPlatform: session?.streamPlatform ?? null,
+    glassesWifiConnected: session?.glassesWifiConnected ?? null,
   };
 }
 
