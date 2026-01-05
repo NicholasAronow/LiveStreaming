@@ -292,6 +292,8 @@ function StreamSetup({
                 value={streamKey}
                 onChange={(e) => setStreamKey(e.target.value)}
                 placeholder={getStreamKeyPlaceholder(platform)}
+                autoComplete="off"
+                data-form-type="other"
                 className="h-[36px] w-full px-4 py-3 border border-[var(--border)] rounded-[8px] text-[14px] text-[var(--muted-forground)] focus:outline-none transition-colors pr-10"
                 style={{
                   borderColor: "var(--border)",
