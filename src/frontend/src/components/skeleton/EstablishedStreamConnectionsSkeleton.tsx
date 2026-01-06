@@ -1,6 +1,6 @@
 function EstablishedStreamConnectionsSkeleton() {
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA]">
+    <div className="w-full h-full px-[24px] pt-[24px] bg-[#FAFAFA]">
       <div className="flex flex-col gap-[24px]">
         {/* Connection Card Skeletons */}
         {[...Array(3)].map((_, index) => (
