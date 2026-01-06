@@ -209,12 +209,12 @@ export default function StreamPreview() {
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Top Bar with Logo and Share Button */}
-        <div className="bg-white px-4 sm:px-6 lg:px-8 py-4 border-b border-gray-100">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="bg-white px-3 sm:px-6 lg:px-8 py-3 sm:py-4 border-b border-gray-100">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
             {/* Logo */}
-            <div className="text-[40px] font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
-              Streamer
-            </div> //
+            <div className="text-[24px] sm:text-[32px] lg:text-[40px] font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+              Mentra Stream
+            </div>
 
             {/* Share Button */}
             <button
@@ -226,10 +226,10 @@ export default function StreamPreview() {
                   console.error("Failed to copy:", error);
                 }
               }}
-              className="px-6 py-2.5 bg-gradient-to-r from-[#c9594c] to-[#b74539] text-white rounded-full font-semibold text-sm transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+              className="px-3 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-[#c9594c] to-[#b74539] text-white rounded-full font-semibold text-xs sm:text-sm transition-all shadow-lg hover:shadow-xl flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0"
             >
               <svg
-                className="w-4 h-4"
+                className="w-3.5 h-3.5 sm:w-4 sm:h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -247,7 +247,7 @@ export default function StreamPreview() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-12">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-12 -mt-[0px]">
           <div className="w-full max-w-7xl">
             {/* Stream Card */}
             <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -381,6 +381,55 @@ export default function StreamPreview() {
                   </>
                 )}
               </div>
+            </div>
+          </div>
+          {/* App Store Badges */}
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <p className="font-bold text-center text-lg sm:text-xl text-gray-700">
+              Download the <span className="animate-gradient-text font-extrabold">Mentra</span> App
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              {/* Google Play Store Badge */}
+              <a
+                href="https://play.google.com/store/apps/details?id=com.mentra.mentra"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-transform hover:scale-105"
+              >
+                <img
+                  src="https://cdn.shopify.com/s/files/1/0747/3505/9196/files/Google_Play_Store_badge_EN_svg.png?v=1758968730"
+                  alt="Get it on Google Play"
+                  className="h-12 sm:h-14"
+                />
+              </a>
+
+              {/* Apple App Store Badge */}
+              <a
+                href="https://apps.apple.com/us/app/mentra-the-smart-glasses-app/id6747363193"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-transform hover:scale-105"
+              >
+                <img
+                  src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83&amp;releaseDate=1440115200"
+                  alt="Download on the App Store"
+                  className="h-12 sm:h-14"
+                />
+              </a>
+
+              {/* GitHub Badge */}
+              <a
+                href="https://github.com/Mentra-Community/MentraOS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-transform hover:scale-105"
+              >
+                <img
+                  src="https://cdn.shopify.com/s/files/1/0747/3505/9196/files/get-it-on-github.png?v=1759512657"
+                  alt="View on GitHub"
+                  className="h-12 sm:h-14"
+                />
+              </a>
             </div>
           </div>
         </div>
