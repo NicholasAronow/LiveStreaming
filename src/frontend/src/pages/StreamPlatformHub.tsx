@@ -63,25 +63,40 @@ function StreamPlatformHub({
   // Local button state - only changes on user action or final stream states
   const [buttonState, setButtonState] = useState<'idle' | 'starting' | 'live' | 'stopping'>('idle');
 
-  // Sync button state with streamStatus - only update for definitive states
+  // Local display state for status badge - prevents flickering during transitions
+  const [displayStatus, setDisplayStatus] = useState<'off' | 'starting' | 'live' | 'reconnecting' | 'stopping' | 'error'>('off');
+
+  // Sync button state and display status with streamStatus - only update for definitive states
   useEffect(() => {
     const status = streamStatus.toLowerCase();
 
     // Only update button state for final/definitive states
     if (status === 'streaming' || status === 'active' || status === 'connected') {
       setButtonState('live');
+      // Delay showing "Live" status by 1 second for smoother UX
+      const liveStatusTimer = setTimeout(() => {
+        setDisplayStatus('live');
+      }, 1000);
+      return () => clearTimeout(liveStatusTimer);
     } else if (status === 'offline' || status === 'error' || status === 'failed') {
       setButtonState('idle');
+      setDisplayStatus(status === 'error' || status === 'failed' ? 'error' : 'off');
     } else if (status === 'reconnecting') {
       // During reconnecting, show as 'live' so user can still stop the stream
       setButtonState('live');
+      setDisplayStatus('reconnecting');
+    } else if (status === 'connecting' || status === 'starting' || status === 'initializing') {
+      // Keep showing 'starting' for all intermediate connecting states
+      setDisplayStatus('starting');
+    } else if (status === 'stopping' || status === 'disconnecting') {
+      // Show stopping state
+      setDisplayStatus('stopping');
     }
-    // Ignore intermediate states like 'connecting', 'stopping', etc.
-    // Those will be set by user actions in handleToggleStream
+    // Ignore rapid intermediate state changes - displayStatus stabilizes the badge
   }, [streamStatus]);
 
   // Check if currently reconnecting (for status badge animation)
-  const isReconnecting = streamStatus.toLowerCase() === 'reconnecting';
+  const isReconnecting = displayStatus === 'reconnecting';
 
   // Cache buster timestamp for forcing fresh stream content after reconnection
   const [cacheBuster, setCacheBuster] = useState<number | null>(null);
@@ -302,6 +317,7 @@ function StreamPlatformHub({
 
     if (buttonState === 'live') {
       setButtonState('stopping');
+      setDisplayStatus('stopping');
       // Mark as manually stopped - this ensures the reconnecting overlay
       // won't show when user manually stops and restarts the stream
       setUserManuallyStopped(true);
@@ -317,6 +333,7 @@ function StreamPlatformHub({
         // Stop the existing stream first, then start a new one
         console.log('[StreamPlatformHub] Edge case detected: Stream is live but button shows idle. Stopping existing stream first...');
         setButtonState('stopping');
+        setDisplayStatus('stopping');
         onStopStream?.();
 
         // Wait for stream to stop, then start new one
@@ -360,47 +377,32 @@ function StreamPlatformHub({
       setUserManuallyStopped(false);
 
       setButtonState('starting');
+      setDisplayStatus('starting');
       onStartStream?.();
     }
   };
 
   const getStatusColor = () => {
-    const status = streamStatus.toLowerCase();
-    if (
-      status === "streaming" ||
-      status === "active" ||
-      status === "connected"
-    ) {
+    if (displayStatus === 'live') {
       return "#10B981"; // green
-    } else if (status === "connecting" || status === "starting") {
+    } else if (displayStatus === 'starting' || displayStatus === 'reconnecting') {
       return "#F59E0B"; // orange
-    } else if (status === "reconnecting") {
-      return "#F59E0B"; // orange - reconnecting state
-    } else if (status === "error" || status === "failed") {
+    } else if (displayStatus === 'error') {
       return "#EF4444"; // red
     }
     return "#6B7280"; // gray
   };
 
   const getStatusLabel = () => {
-    const status = streamStatus.toLowerCase();
-    if (
-      status === "streaming" ||
-      status === "active" ||
-      status === "connected"
-    ) {
+    if (displayStatus === 'live') {
       return "Live";
-    } else if (
-      status === "connecting" ||
-      status === "starting" ||
-      status === "initializing"
-    ) {
+    } else if (displayStatus === 'starting') {
       return "Starting";
-    } else if (status === "reconnecting") {
+    } else if (displayStatus === 'reconnecting') {
       return "Reconnecting";
-    } else if (status === "stopping" || status === "disconnecting") {
+    } else if (displayStatus === 'stopping') {
       return "Stopping";
-    } else if (status === "error" || status === "failed") {
+    } else if (displayStatus === 'error') {
       return "Error";
     }
     return "Off";

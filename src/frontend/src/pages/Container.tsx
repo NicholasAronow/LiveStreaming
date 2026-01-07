@@ -345,7 +345,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
           name: platformName,
           icon: platformIcon,
           logoIcon: platformLogoIcon,
-        }, true); // Skip AddedKeyPage
+        });
 
         // Immediately set up the connection and navigate
         if (newConnection) {
@@ -377,7 +377,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
     setSelectedPlatform(null);
   };
 
-  const handleConnect = async (key: string, url: string, platformOverride?: typeof selectedPlatform, skipAddedKeyPage = false): Promise<StreamConnection | undefined> => {
+  const handleConnect = async (key: string, url: string, platformOverride?: typeof selectedPlatform): Promise<StreamConnection | undefined> => {
     const currentPlatform = platformOverride || selectedPlatform;
     if (!currentPlatform || !userId) return undefined;
 
@@ -478,10 +478,11 @@ function Container({ userId: userIdProp }: ContainerProps) {
 
           addLog("success", "Configuration saved to database");
 
-          // Show AddedKeyPage (unless skipped for auto-setup platforms like streamer)
-          if (!skipAddedKeyPage) {
-            setShowAddedKeyPage(true);
-          }
+          // Go directly to StreamPlatformHub instead of showing AddedKeyPage
+          setActiveTab("stream");
+          setSelectedPlatform(null);
+          setSelectedConnection(newConnection);
+          setShowAddedKeyPage(false);
 
           // Return the new connection
           return newConnection;
@@ -492,11 +493,6 @@ function Container({ userId: userIdProp }: ContainerProps) {
     } catch (error) {
       console.error("Failed to save connection to API:", error);
       addLog("error", "Failed to save configuration");
-    }
-
-    // Show AddedKeyPage (unless skipped for auto-setup platforms like streamer)
-    if (!skipAddedKeyPage) {
-      setShowAddedKeyPage(true);
     }
 
     return undefined;
@@ -970,7 +966,7 @@ function Container({ userId: userIdProp }: ContainerProps) {
                 onClick={handleLiveBannerClick}
               />
             )}
-            <div className="flex-1 overflow-hidden">{renderContent()}</div>
+            <div className="flex-1 overflow-y-auto overflow-hidden">{renderContent()}</div>
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
           </motion.div>
         )}

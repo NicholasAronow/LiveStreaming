@@ -30,8 +30,8 @@ function EstabllishedStreamConnections({ connections, onOpenConnection, onNaviga
   }
 
   return (
-    <div className="w-full h-full overflow-y-auto px-[24px] pt-[24px] pb-[100px] bg-[#FAFAFA] animate-fadeIn">
-      <div className="flex flex-col gap-[24px] h-full">
+    <div className="w-full px-[24px] pt-[24px] pb-[24px] animate-fadeIn">
+      <div className="flex flex-col gap-[24px]">
         {connections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pt-[100px] px-[24px]">
             <div className="mb-[24px] flex items-center justify-center">
@@ -61,17 +61,19 @@ function EstabllishedStreamConnections({ connections, onOpenConnection, onNaviga
             </button>
           </div>
         ) : (
-          connections.map((connection) => {
+          connections.map((connection, index) => {
             const isThisActive = isStreaming && activeConnectionId === connection.id;
             const shouldGreyOut = isStreaming && !isThisActive;
+            const isLastItem = index === connections.length - 1;
             return (
-              <StreamConnectionCard
-                key={connection.id}
-                connection={connection}
-                onOpen={onOpenConnection}
-                isActive={isThisActive}
-                isGreyedOut={shouldGreyOut}
-              />
+              <div key={connection.id} className={isLastItem ? "" : ""}>
+                <StreamConnectionCard
+                  connection={connection}
+                  onOpen={onOpenConnection}
+                  isActive={isThisActive}
+                  isGreyedOut={shouldGreyOut}
+                />
+              </div>
             );
           })
         )}
