@@ -1,66 +1,73 @@
-# Mentra Live Streamer App
+<p align="center">
+  <img src="https://imagedelivery.net/nrc8B2Lk8UIoyW7fY8uHVg/ea6c9dc1-eef0-4401-6201-88259fcc9600/square" alt="Mentra Streamer" width="120" height="120" />
+</p>
 
-### Install MentraOS on your phone
+<h1 align="center">Mentra Streamer</h1>
 
-MentraOS install links: [mentra.glass/install](https://mentra.glass/install)
+<p align="center">
+  <strong>Live streaming companion for smart glasses</strong>
+</p>
 
-### (Easiest way to get started) Set up ngrok
+<p align="center">
+  Stream to your audience with real-time transcription and interactive tools.<br/>
+  See your chat. Share what you see. All from your glasses.
+</p>
 
-1. `brew install ngrok`
+<p align="center">
+  <a href="https://apps.mentra.glass/package/com.mentra.streamer">Install from Mentra App Store</a>
+</p>
 
-2. Make an ngrok account
+---
 
-3. [Use ngrok to make a static address/URL](https://dashboard.ngrok.com/)
+## What It Does
 
-### Register your APP with MentraOS
+Mentra Streamer turns your smart glasses into a live streaming hub. It connects your glasses to your stream, providing real-time transcription, interactive tools, and a web dashboard for managing your broadcast.
 
-<img width="181" alt="image" src="https://github.com/user-attachments/assets/36192c2b-e1ba-423b-90de-47ff8cd91318" />
+- **Live transcription** — Real-time speech-to-text displayed on your HUD
+- **Web dashboard** — Control and monitor your stream from any browser
+- **Interactive tools** — Trigger actions via voice commands during your stream
+- **Multi-user sessions** — Supports multiple concurrent streamers
 
-1. Navigate to [console.mentra.glass](https://console.mentra.glass/)
+## Getting Started
 
-2. Click "Sign In", and log in with the same account you're using for MentraOS
+### Prerequisites
 
-3. Click "Create App"
+1. Install MentraOS: [get.mentraglass.com](https://get.mentraglass.com)
+2. Install Bun: [bun.sh](https://bun.sh/docs/installation)
+3. Set up ngrok: `brew install ngrok` and create a [static URL](https://dashboard.ngrok.com/)
 
-4. Set a unique package name like `com.yourName.yourAppName`
+### Register Your App
 
-5. For "Public URL", enter your Ngrok's static URL or the public URL of your server
+1. Go to [console.mentra.glass](https://console.mentra.glass/)
+2. Sign in and click "Create App"
+3. Set a unique package name (e.g., `com.yourName.streamer`)
+4. Enter your ngrok URL as "Public URL"
+5. Add **microphone** permission
 
-6. After the app is created, you will be given an API key. Copy this key and use it in the `.env` file below.
+### Run It
 
-7. You can now add settings and tools to your app via the MentraOS Developer Console.  Let's upload this example's `app_config.json` file by clicking the "Import app_config.json" button under **Configuration Management**:
+```bash
+# Install
+git clone <repo-url>
+cd Livestreamer
+bun install
+cp .env.example .env
 
-    ![Import app config](https://github.com/user-attachments/assets/14736150-7f02-43db-8b29-bbe918a4086b)
+# Configure .env with your credentials
+# PORT, PACKAGE_NAME, MENTRAOS_API_KEY (required)
 
-### Get your APP running!
+# Start
+bun run dev
 
-1. [Install bun](https://bun.sh/docs/installation)
+# Expose via ngrok
+ngrok http --url=<YOUR_NGROK_URL> 3000
+```
 
-2. Create a new repo from this template using the `Use this template` dropdown in the upper right or the following command: `gh repo create --template Mentra-Community/MentraOS-Extended-Example-App`
+## Documentation
 
-    ![Create repo from template](https://github.com/user-attachments/assets/c10e14e8-2dc5-4dfa-adac-dd334c1b73a5)
+- [MentraOS Docs](https://docs.mentra.glass)
+- [Developer Console](https://console.mentra.glass)
 
-3. Clone your new repo locally: `git clone <your-repo-url>`
+## License
 
-4. cd into your repo, then type `bun install`
-
-5. Set up your environment variables:
-   * Create a `.env` file in the root directory by copying the example: `cp .env.example .env`
-   * Edit the `.env` file with your app details:
-     ```
-     PORT=3000
-     PACKAGE_NAME=com.yourName.yourAppName
-     MENTRAOS_API_KEY=your_api_key_from_console
-     ```
-   * Make sure the `PACKAGE_NAME` matches what you registered in the MentraOS Console
-   * Get your `MENTRAOS_API_KEY` from the MentraOS Developer Console
-
-6. Run your app with `bun run dev`
-
-7. To expose your app to the internet (and thus MentraOS) with ngrok, run: `ngrok http --url=<YOUR_NGROK_URL_HERE> 3000`
-    * `3000` is the port. It must match what is in the app config. For example, if you entered `port: 8080`, use `8080` for ngrok instead.
-
-
-### Next Steps
-
-Check out the full documentation at [docs.mentra.glass](https://docs.mentra.glass/core-concepts)
+MIT
