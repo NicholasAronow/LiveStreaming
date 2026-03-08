@@ -2,7 +2,7 @@
   <img src="https://imagedelivery.net/nrc8B2Lk8UIoyW7fY8uHVg/ea6c9dc1-eef0-4401-6201-88259fcc9600/square" alt="Mentra Streamer" width="120" height="120" />
 </p>
 
-<h1 align="center">Mentra Streamer</h1>
+<h1 align="center">Livestreamer</h1>
 
 <p align="center">
   <strong>Live streaming companion for smart glasses</strong>
